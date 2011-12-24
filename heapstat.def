@@ -1,0 +1,22 @@
+;--------------------------------------------------------------------
+;    Copyright (c) 2011  Yoichi NAKAYAMA
+; 
+; Module:
+;    hepastat.def
+;--------------------------------------------------------------------
+
+EXPORTS
+
+;--------------------------------------------------------------------
+; These are the extensions exported by dll
+;--------------------------------------------------------------------
+    help
+    heapstat
+    ust
+
+;--------------------------------------------------------------------
+; these are the extension service functions provided for the debugger
+;--------------------------------------------------------------------
+    CheckVersion
+    WinDbgExtensionDllInit
+    ExtensionApiVersion
