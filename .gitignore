@@ -1,0 +1,9 @@
+# output directory
+Debug/
+Release/
+
+# secondary files created by Visual Studio
+*.ncb
+*.vcproj.*
+*.aps
+*.suo
