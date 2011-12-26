@@ -4,7 +4,6 @@ Provides:
 * "!heapstat" command shows heap usage statistics based on stack traces
 
 Limitations:
-* 64bit target process is not supported
 * tested on Windows7 (x64) only, may not work on older OS's
 
 Build Requirements:
