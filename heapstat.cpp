@@ -98,8 +98,7 @@ static BOOL DecodeHeap64Entry(Heap64Entry *entry, const Heap64Entry *encoding)
 	{
 		entry_[i] ^= encoding_[i];
 	}
-	// FIXME: calcurate checksum
-	return TRUE;
+	return (entry_[0x8] ^ entry_[0x9] ^ entry_[0xa] ^ entry_[0xb]) == 0x00;
 }
 
 static ULONG32 GetNtGlobalFlag()
