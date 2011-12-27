@@ -210,25 +210,6 @@ static ULONG64 GetHeapAddress(ULONG index)
 	return heap;
 }
 
-static void PrintStack(ULONG64 address, PCSTR indent = "")
-{
-	// Use same size as used in simplext sample extension.
-	// The limit is not specified in http://msdn.microsoft.com/en-us/library/ff548447.aspx
-	// In phenomenology, empty string is returned if symbol expression (including \0) exceeds 256 bytes.
-	CHAR Buffer[256];
-	ULONG64 displacement;
-
-	GetSymbol(address, Buffer, &displacement);
-
-	dprintf("%s%p %s", indent, address, Buffer);
-	if (displacement)
-	{
-		dprintf("+0x%x", (ULONG)displacement);
-	}
-
-	dprintf("\n");
-}
-
 static void PrintStackTrace(ULONG64 ustAddress, PCSTR indent = "")
 {
 	ULONG cb;
@@ -271,7 +252,7 @@ static void PrintStackTrace(ULONG64 ustAddress, PCSTR indent = "")
 				dprintf("read sp failed\n");
 				return;
 			}
-			PrintStack(sp, indent);
+			dprintf("%s%ly\n", indent, sp);
 			address += sizeof(sp);
 		}
 	}
@@ -286,7 +267,7 @@ static void PrintStackTrace(ULONG64 ustAddress, PCSTR indent = "")
 				dprintf("read sp failed\n");
 				return;
 			}
-			PrintStack(sp, indent);
+			dprintf("%s%ly\n", indent, (ULONG64)sp);
 			address += sizeof(sp);
 		}
 	}
