@@ -273,7 +273,7 @@ static void PrintStackTrace(ULONG64 ustAddress, PCSTR indent = "")
 	}
 }
 
-static void Register(ULONG64 ustAddress, ULONG64 size, ULONG64 address, std::map<ULONG64, UstRecord> &records)
+static void Register(ULONG64 ustAddress, ULONG64 size, ULONG64 address, ULONG64 userSize, ULONG64 userAddress, std::map<ULONG64, UstRecord> &records)
 {
 	if (ustAddress != 0)
 	{
@@ -370,48 +370,58 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 							if (verbose)
 							{
 								dprintf("0x%p\n", ustAddress);
-								if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+							}
+							ULONG64 userSize = 0;
+							ULONG64 userPtr = 0;
+							if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+							{
+								USHORT userSize_;
+								if (READMEMORY(address + sizeof(entry) + 0x8, userSize_))
 								{
-									USHORT userSize;
-									if (READMEMORY(address + sizeof(entry) + 0x8, userSize))
+									if (entry.Size * blockSize > userSize_)
 									{
-										if (entry.Size * blockSize > userSize)
+										userSize = userSize_;
+										userPtr = address + sizeof(entry) + 0x20;
+										if (verbose)
 										{
-											ULONG64 userPtr = address + sizeof(entry) + 0x20;
-											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
-										}
-										else
-										{
-											dprintf("invalid userSize 0x%04x\n", userSize);
+											dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, entry.Size * blockSize - userSize);
 										}
 									}
 									else
 									{
-										dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
+										dprintf("invalid userSize 0x%04x\n", userSize);
 									}
 								}
-								else // NT_GLOBAL_FLAG_UST
+								else
 								{
-									USHORT extra;
-									if (READMEMORY(address + sizeof(entry) + 0xc, extra))
-									{
-										if (entry.Size * blockSize > extra)
-										{
-											ULONG64 userPtr = address + sizeof(entry) + 0x10;
-											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
-										}
-										else
-										{
-											dprintf("invalid extra 0x%04x\n", extra);
-										}
-									}
-									else
-									{
-										dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
-									}
+									dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
 								}
 							}
-							Register(ustAddress, entry.Size * blockSize, address, records);
+							else // NT_GLOBAL_FLAG_UST
+							{
+								USHORT extra;
+								if (READMEMORY(address + sizeof(entry) + 0xc, extra))
+								{
+									if (entry.Size * blockSize > extra)
+									{
+										userSize = entry.Size * blockSize - extra;
+										userPtr = address + sizeof(entry) + 0x10;
+										if (verbose)
+										{
+											dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, (ULONG64)extra);
+										}
+									}
+									else
+									{
+										dprintf("invalid extra 0x%04x\n", extra);
+									}
+								}
+								else
+								{
+									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
+								}
+							}
+							Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr, records);
 						}
 					}
 					else
@@ -499,48 +509,55 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 							if (verbose)
 							{
 								dprintf("0x%p\n", ustAddress);
-								if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+							}
+							ULONG64 userSize = 0;
+							ULONG64 userPtr = 0;
+							if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+							{
+								USHORT userSize_;
+								if (READMEMORY(address + sizeof(entry) + 0x10, userSize_))
 								{
-									USHORT userSize;
-									if (READMEMORY(address + sizeof(entry) + 0x10, userSize))
+									if (entry.Size * blockSize > userSize_)
 									{
-										if (entry.Size * blockSize > userSize)
-										{
-											ULONG64 userPtr = address + sizeof(entry) + 0x40;
-											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
-										}
-										else
-										{
-											dprintf("invalid userSize 0x%04x\n", userSize);
-										}
+										userSize = userSize_;
+										userPtr = address + sizeof(entry) + 0x40;
+										dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, entry.Size * blockSize - userSize);
 									}
 									else
 									{
-										dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
+										dprintf("invalid userSize 0x%04x\n", userSize);
 									}
 								}
-								else // NT_GLOBAL_FLAG_UST
+								else
 								{
-									USHORT extra;
-									if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
-									{
-										if (entry.Size * blockSize > extra)
-										{
-											ULONG64 userPtr = address + sizeof(entry) + 0x20;
-											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
-										}
-										else
-										{
-											dprintf("invalid extra 0x%04x\n", extra);
-										}
-									}
-									else
-									{
-										dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
-									}
+									dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
 								}
 							}
-							Register(ustAddress, entry.Size * blockSize, address, records);
+							else // NT_GLOBAL_FLAG_UST
+							{
+								USHORT extra;
+								if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
+								{
+									if (entry.Size * blockSize > extra)
+									{
+										userSize = entry.Size * blockSize - extra;
+										userPtr = address + sizeof(entry) + 0x20;
+										if (verbose)
+										{
+											dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, (ULONG64)extra);
+										}
+									}
+									else
+									{
+										dprintf("invalid extra 0x%04x\n", extra);
+									}
+								}
+								else
+								{
+									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
+								}
+							}
+							Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr, records);
 						}
 					}
 					else
