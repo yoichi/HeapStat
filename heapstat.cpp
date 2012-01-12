@@ -316,7 +316,10 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
 	{
-		dprintf("segment %d\n", index);
+		if (verbose)
+		{
+			dprintf("segment %d\n", index);
+		}
 		HeapSegment segment;
 		if (!READMEMORY(heapAddress, segment))
 		{
@@ -367,45 +370,45 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 							if (verbose)
 							{
 								dprintf("0x%p\n", ustAddress);
-							}
-							if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
-							{
-								USHORT userSize;
-								if (READMEMORY(address + sizeof(entry) + 0x8, userSize))
+								if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 								{
-									if (entry.Size * blockSize > userSize)
+									USHORT userSize;
+									if (READMEMORY(address + sizeof(entry) + 0x8, userSize))
 									{
-										ULONG64 userPtr = address + sizeof(entry) + 0x20;
-										dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
+										if (entry.Size * blockSize > userSize)
+										{
+											ULONG64 userPtr = address + sizeof(entry) + 0x20;
+											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
+										}
+										else
+										{
+											dprintf("invalid userSize 0x%04x\n", userSize);
+										}
 									}
 									else
 									{
-										dprintf("invalid userSize 0x%04x\n", userSize);
+										dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
 									}
 								}
-								else
+								else // NT_GLOBAL_FLAG_UST
 								{
-									dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
-								}
-							}
-							else // NT_GLOBAL_FLAG_UST
-							{
-								USHORT extra;
-								if (READMEMORY(address + sizeof(entry) + 0xc, extra))
-								{
-									if (entry.Size * blockSize > extra)
+									USHORT extra;
+									if (READMEMORY(address + sizeof(entry) + 0xc, extra))
 									{
-										ULONG64 userPtr = address + sizeof(entry) + 0x10;
-										dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
+										if (entry.Size * blockSize > extra)
+										{
+											ULONG64 userPtr = address + sizeof(entry) + 0x10;
+											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
+										}
+										else
+										{
+											dprintf("invalid extra 0x%04x\n", extra);
+										}
 									}
 									else
 									{
-										dprintf("invalid extra 0x%04x\n", extra);
+										dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 									}
-								}
-								else
-								{
-									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 								}
 							}
 							Register(ustAddress, entry.Size * blockSize, address, records);
@@ -442,7 +445,10 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
 	{
-		dprintf("segment %d\n", index);
+		if (verbose)
+		{
+			dprintf("segment %d\n", index);
+		}
 		Heap64Segment segment;
 		if (!READMEMORY(heapAddress, segment))
 		{
@@ -493,45 +499,45 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 							if (verbose)
 							{
 								dprintf("0x%p\n", ustAddress);
-							}
-							if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
-							{
-								USHORT userSize;
-								if (READMEMORY(address + sizeof(entry) + 0x10, userSize))
+								if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 								{
-									if (entry.Size * blockSize > userSize)
+									USHORT userSize;
+									if (READMEMORY(address + sizeof(entry) + 0x10, userSize))
 									{
-										ULONG64 userPtr = address + sizeof(entry) + 0x40;
-										dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
+										if (entry.Size * blockSize > userSize)
+										{
+											ULONG64 userPtr = address + sizeof(entry) + 0x40;
+											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, userSize, entry.Size * blockSize - userSize);
+										}
+										else
+										{
+											dprintf("invalid userSize 0x%04x\n", userSize);
+										}
 									}
 									else
 									{
-										dprintf("invalid userSize 0x%04x\n", userSize);
+										dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
 									}
 								}
-								else
+								else // NT_GLOBAL_FLAG_UST
 								{
-									dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
-								}
-							}
-							else // NT_GLOBAL_FLAG_UST
-							{
-								USHORT extra;
-								if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
-								{
-									if (entry.Size * blockSize > extra)
+									USHORT extra;
+									if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
 									{
-										ULONG64 userPtr = address + sizeof(entry) + 0x20;
-										dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
+										if (entry.Size * blockSize > extra)
+										{
+											ULONG64 userPtr = address + sizeof(entry) + 0x20;
+											dprintf("userPtr:%p, userSize:%04x, extra:%04x\n", userPtr, entry.Size * blockSize - extra, extra);
+										}
+										else
+										{
+											dprintf("invalid extra 0x%04x\n", extra);
+										}
 									}
 									else
 									{
-										dprintf("invalid extra 0x%04x\n", extra);
+										dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 									}
-								}
-								else
-								{
-									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 								}
 							}
 							Register(ustAddress, entry.Size * blockSize, address, records);
@@ -588,11 +594,17 @@ DECLARE_API(heapstat)
 	ntGlobalFlag = GetNtGlobalFlag();
 	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
-		dprintf("hpa enabled\n");
+		if (verbose)
+		{
+			dprintf("hpa enabled\n");
+		}
 	}
 	else if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 	{
-		dprintf("ust enabled\n");
+		if (verbose)
+		{
+			dprintf("ust enabled\n");
+		}
 	}
 	else
 	{
@@ -604,7 +616,10 @@ DECLARE_API(heapstat)
 
 	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
 	{
-		dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
+		if (verbose)
+		{
+			dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
+		}
 		if (IsTarget64())
 		{
 			if (!AnalyzeHeap64(heapAddress, ntGlobalFlag, verbose, records))
