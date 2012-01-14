@@ -319,6 +319,14 @@
 				RelativePath=".\heapstat.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\SummaryProcessor.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Utility.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header"
@@ -334,7 +342,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\IProcessor.h"
+				>
+			</File>
+			<File
 				RelativePath=".\resource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SummaryProcessor.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Utility.h"
 				>
 			</File>
 		</Filter>

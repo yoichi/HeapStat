@@ -1,13 +1,6 @@
 #include "common.h"
-#include <map>
-#include <list>
-
-#define NT_GLOBAL_FLAG_UST 0x00001000 // user mode stack trace database enabled
-#define NT_GLOBAL_FLAG_HPA 0x02000000 // page heap enabled
-
-#define PEB32_OFFSET 0x1000 // PEB64 - PEB32 offset
-
-#define READMEMORY(address, var) (ReadMemory(address, &var, sizeof(var), &cb) && cb == sizeof(var))
+#include "Utility.h"
+#include "SummaryProcessor.h"
 
 typedef struct {
 	USHORT Size;
@@ -72,13 +65,6 @@ typedef struct {
 	ULONG64 largestEntry;
 } UstRecord;
 
-static BOOL IsTarget64()
-{
-	ULONG64 address;
-	GetTebAddress(&address);
-	return (address >> 32) ? TRUE : FALSE;
-}
-
 static BOOL DecodeHeapEntry(HeapEntry *entry, const HeapEntry *encoding)
 {
 	UCHAR *entry_ = (UCHAR*)entry;
@@ -101,39 +87,9 @@ static BOOL DecodeHeap64Entry(Heap64Entry *entry, const Heap64Entry *encoding)
 	return (entry_[0x8] ^ entry_[0x9] ^ entry_[0xa] ^ entry_[0xb]) == 0x00;
 }
 
-static ULONG32 GetNtGlobalFlag()
-{
-	ULONG64 address;
-	ULONG32 ntGlobalFlag;
-
-	GetPebAddress(NULL, &address);
-	if (IsTarget64())
-	{
-		if (GetFieldValue(address, "ntdll!_PEB", "NtGlobalFlag", ntGlobalFlag) != 0)
-		{
-			dprintf("read NtGlobalFlag failed\n");
-			return 0;
-		}
-	}
-	else
-	{
-		if (IsPtr64())
-		{
-			address -= PEB32_OFFSET;
-		}
-		ULONG cb;
-		if (!READMEMORY(address + 0x68, ntGlobalFlag))
-		{
-			dprintf("read NtGlobalFlag failed\n");
-			return 0;
-		}
-	}
-	return ntGlobalFlag;
-}
-
 static ULONG64 GetHeapAddress(ULONG index)
 {
-	const BOOL isTarget64 = IsTarget64();
+	const bool isTarget64 = IsTarget64();
 
 	ULONG64 address;
 	GetPebAddress(NULL, &address);
@@ -210,99 +166,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 	return heap;
 }
 
-static void PrintStackTrace(ULONG64 ustAddress, PCSTR indent = "")
-{
-	ULONG cb;
-	ULONG32 ntGlobalFlag;
-	USHORT depth;
-	ULONG64 offset;
-	const BOOL isTarget64 = IsTarget64();
-
-	ntGlobalFlag = GetNtGlobalFlag();
-	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
-	{
-		//dprintf("hpa enabled\n");
-		offset = isTarget64 ? 0xe : 0xa;
-	}
-	else if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
-	{
-		//dprintf("ust enabled\n");
-		offset = isTarget64 ? 0xc : 0x8;
-	}
-	else
-	{
-		dprintf("please set ust or hpa by gflags.exe\n");
-		return;
-	}
-
-	if (!READMEMORY(ustAddress + offset, depth))
-	{
-		dprintf("read depth failed\n");
-		return;
-	}
-	dprintf("%sust at %p depth: %d\n", indent, ustAddress, depth);
-	if (isTarget64)
-	{
-		ULONG64 address = ustAddress + 0x10;
-		for (int i = 0; i < depth; i++)
-		{
-			ULONG64 sp;
-			if (!READMEMORY(address, sp))
-			{
-				dprintf("read sp failed\n");
-				return;
-			}
-			dprintf("%s%ly\n", indent, sp);
-			address += sizeof(sp);
-		}
-	}
-	else
-	{
-		ULONG64 address = ustAddress + 0xc;
-		for (int i = 0; i < depth; i++)
-		{
-			ULONG32 sp;
-			if (!READMEMORY(address, sp))
-			{
-				dprintf("read sp failed\n");
-				return;
-			}
-			dprintf("%s%ly\n", indent, (ULONG64)sp);
-			address += sizeof(sp);
-		}
-	}
-}
-
-static void Register(ULONG64 ustAddress, ULONG64 size, ULONG64 address, ULONG64 userSize, ULONG64 userAddress, std::map<ULONG64, UstRecord> &records)
-{
-	if (ustAddress != 0)
-	{
-		std::map<ULONG64, UstRecord>::iterator itr = records.find(ustAddress);
-		if (itr == records.end())
-		{
-			UstRecord record;
-			record.ustAddress = ustAddress;
-			record.count = 1;
-			record.totalSize = record.maxSize = size;
-			record.largestEntry = address;
-			records[ustAddress] = record;
-		}
-		else
-		{
-			UstRecord record = itr->second;
-			record.count++;
-			record.totalSize += size;
-			if (record.maxSize < size)
-			{
-				record.maxSize = size;
-				record.largestEntry = address;
-			}
-			records[ustAddress] = record;
-		}
-	}
-}
-
-static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, std::map<ULONG64, UstRecord> &records)
+static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	const ULONG blockSize = 8;
 	ULONG cb;
@@ -421,7 +285,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 								}
 							}
-							Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr, records);
+							processor->Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr);
 						}
 					}
 					else
@@ -441,7 +305,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	return TRUE;
 }
 
-static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, std::map<ULONG64, UstRecord> &records)
+static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	const ULONG blockSize = 16;
 	ULONG cb;
@@ -557,7 +421,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
 								}
 							}
-							Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr, records);
+							processor->Register(ustAddress, entry.Size * blockSize, address, userSize, userPtr);
 						}
 					}
 					else
@@ -573,6 +437,56 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		}
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
 		index++;
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
+{
+	ULONG64 heapAddress;
+	ULONG32 ntGlobalFlag;
+
+	ntGlobalFlag = GetNtGlobalFlag();
+	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+	{
+		if (verbose)
+		{
+			dprintf("hpa enabled\n");
+		}
+	}
+	else if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
+	{
+		if (verbose)
+		{
+			dprintf("ust enabled\n");
+		}
+	}
+	else
+	{
+		dprintf("please set ust or hpa by gflags.exe\n");
+		return FALSE;
+	}
+
+	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
+	{
+		if (verbose)
+		{
+			dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
+		}
+		if (IsTarget64())
+		{
+			if (!AnalyzeHeap64(heapAddress, ntGlobalFlag, verbose, processor))
+			{
+				return FALSE;
+			}
+		}
+		else
+		{
+			if (!AnalyzeHeap32(heapAddress, ntGlobalFlag, verbose, processor))
+			{
+				return FALSE;
+			}
+		}
 	}
 	return TRUE;
 }
@@ -598,8 +512,6 @@ DECLARE_API(heapstat)
 	UNREFERENCED_PARAMETER(hCurrentThread);
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
-	ULONG64 heapAddress;
-	ULONG32 ntGlobalFlag;
 	BOOL verbose = FALSE;
 
 	if (strcmp("-v", args) == 0)
@@ -608,90 +520,14 @@ DECLARE_API(heapstat)
 		verbose = TRUE;
 	}
 
-	ntGlobalFlag = GetNtGlobalFlag();
-	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+	SummaryProcessor processor;
+
+	if (!AnalyzeHeap(&processor, verbose))
 	{
-		if (verbose)
-		{
-			dprintf("hpa enabled\n");
-		}
-	}
-	else if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
-	{
-		if (verbose)
-		{
-			dprintf("ust enabled\n");
-		}
-	}
-	else
-	{
-		dprintf("please set ust or hpa by gflags.exe\n");
 		return;
 	}
 
-	std::map<ULONG64, UstRecord> records;
-
-	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
-	{
-		if (verbose)
-		{
-			dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
-		}
-		if (IsTarget64())
-		{
-			if (!AnalyzeHeap64(heapAddress, ntGlobalFlag, verbose, records))
-			{
-				return;
-			}
-		}
-		else
-		{
-			if (!AnalyzeHeap32(heapAddress, ntGlobalFlag, verbose, records))
-			{
-				return;
-			}
-		}
-	}
-
-	// sort by total size
-	std::list<UstRecord> sorted;
-	for (std::map<ULONG64, UstRecord>::iterator itr_ = records.begin(); itr_ != records.end(); ++itr_)
-	{
-		std::list<UstRecord>::iterator itr = sorted.begin();
-		while (itr != sorted.end())
-		{
-			if (itr->totalSize < itr_->second.totalSize)
-			{
-				break;
-			}
-			++itr;
-		}
-		sorted.insert(itr, itr_->second);
-	}
-
-	if (IsPtr64())
-	{
-		dprintf("----------------------------------------------------------------------------------------\n");
-		dprintf("             ust,            count,            total,              max,            entry\n");
-		dprintf("----------------------------------------------------------------------------------------\n");
-	}
-	else
-	{
-		dprintf("------------------------------------------------\n");
-		dprintf("     ust,    count,    total,      max,    entry\n");
-		dprintf("------------------------------------------------\n");
-	}
-	for (std::list<UstRecord>::iterator itr = sorted.begin(); itr != sorted.end(); ++itr)
-	{
-		dprintf("%p, %p, %p, %p, %p\n",
-			itr->ustAddress,
-			itr->count,
-			itr->totalSize,
-			itr->maxSize,
-			itr->largestEntry);
-		PrintStackTrace(itr->ustAddress, "\t");
-	}
-	dprintf("\n");
+	processor.Print();
 }
 
 DECLARE_API(ust)
@@ -702,5 +538,11 @@ DECLARE_API(ust)
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
 	ULONG64 Address = GetExpression(args);
-	PrintStackTrace(Address);
+
+	std::vector<ULONG64> trace = GetStackTrace(Address);
+	dprintf("ust at %p depth: %d\n", Address, trace.size());
+	for (std::vector<ULONG64>::iterator itr = trace.begin(); itr != trace.end(); itr++)
+	{
+		dprintf("%ly\n", *itr);
+	}
 }
