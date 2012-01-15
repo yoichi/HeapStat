@@ -212,13 +212,13 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
 			{
+				if (verbose)
+				{
+					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x, ", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
+				}
 				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
 				if (entry.Flags == busy)
 				{
-					if (verbose)
-					{
-						dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x, ", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-					}
 					if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
 					{
 						ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x18 : 0;
@@ -297,6 +297,13 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 						}
 					}
 				}
+				else
+				{
+					if (verbose)
+					{
+						dprintf("\n");
+					}
+				}
 			}
 			address += entry.Size * blockSize;
 		}
@@ -351,13 +358,13 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
 			{
+				if (verbose)
+				{
+					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x, ", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
+				}
 				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
 				if (entry.Flags == busy)
 				{
-					if (verbose)
-					{
-						dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x, ", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-					}
 					if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
 					{
 						ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x30 : 0;
@@ -431,6 +438,13 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 						{
 							dprintf("\n");
 						}
+					}
+				}
+				else
+				{
+					if (verbose)
+					{
+						dprintf("\n");
 					}
 				}
 			}
