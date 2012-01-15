@@ -1,6 +1,7 @@
 #include "common.h"
 #include "Utility.h"
 #include "SummaryProcessor.h"
+#include "UmdhProcessor.h"
 
 typedef struct {
 	USHORT Size;
@@ -473,6 +474,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 		{
 			dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
 		}
+		processor->StartHeap(heapAddress);
 		if (IsTarget64())
 		{
 			if (!AnalyzeHeap64(heapAddress, ntGlobalFlag, verbose, processor))
@@ -487,6 +489,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 				return FALSE;
 			}
 		}
+		processor->FinishHeap(heapAddress);
 	}
 	return TRUE;
 }
@@ -501,6 +504,7 @@ DECLARE_API(help)
 
 	dprintf("Help for extension dll heapstat.dll\n"
 			"   heapstat [-v]   - Shows statistics of heaps\n"
+			"   umdh <file>     - Generate umdh output\n"
 			"   ust <addr>      - Shows stacktrace of the ust record at <addr>\n"
 			"   help            - Shows this help\n");
 }
@@ -528,6 +532,21 @@ DECLARE_API(heapstat)
 	}
 
 	processor.Print();
+}
+
+DECLARE_API(umdh)
+{
+	UNREFERENCED_PARAMETER(dwProcessor);
+	UNREFERENCED_PARAMETER(dwCurrentPc);
+	UNREFERENCED_PARAMETER(hCurrentThread);
+	UNREFERENCED_PARAMETER(hCurrentProcess);
+
+	UmdhProcessor processor(args);
+
+	if (!AnalyzeHeap(&processor, FALSE))
+	{
+		return;
+	}
 }
 
 DECLARE_API(ust)

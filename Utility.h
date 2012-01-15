@@ -24,6 +24,11 @@ bool IsTarget64();
 ULONG32 GetNtGlobalFlag();
 
 /**
+*	@brief get pointer to stack trace array
+*/
+ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress);
+
+/**
 *	@brief get stack trace from user mode stack trace database
 */
 std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress);

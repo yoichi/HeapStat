@@ -4,6 +4,12 @@ class IProcessor
 {
 public:
 	/**
+	*	@brief start processing the heap
+	*	@param heapAddress [in] heap address
+	*/
+	virtual void StartHeap(ULONG64 heapAddress) = 0;
+
+	/**
 	*	@brief register heap entry
 	*	@param ustAddress [in] ust entry address
 	*	@param size [in] size of heap entry
@@ -16,4 +22,10 @@ public:
 		ULONG64 size, ULONG64 address,
 		ULONG64 userSize, ULONG64 userAddress
 		) = 0;
+
+	/**
+	*	@brief finish processing the heap
+	*	@param heapAddress [in] heap address
+	*/
+	virtual void FinishHeap(ULONG64 heapAddress) = 0;
 };

@@ -324,6 +324,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\UmdhProcessor.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Utility.cpp"
 				>
 			</File>
@@ -351,6 +355,10 @@
 			</File>
 			<File
 				RelativePath=".\SummaryProcessor.h"
+				>
+			</File>
+			<File
+				RelativePath=".\UmdhProcessor.h"
 				>
 			</File>
 			<File

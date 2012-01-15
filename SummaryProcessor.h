@@ -24,11 +24,21 @@ private:
 
 public:
 	/**
+	*	@copydoc IProcessor::StartHeap()
+	*/
+	void StartHeap(ULONG64 heapAddress) {}
+
+	/**
 	*	@copydoc IProcessor::Register()
 	*/
 	void Register(ULONG64 ustAddress,
 		ULONG64 size, ULONG64 address,
 		ULONG64 userSize, ULONG64 userAddress);
+
+	/**
+	*	@copydoc IProcessor::FinishHeap()
+	*/
+	void FinishHeap(ULONG64 heapAddress) {}
 
 	/**
 	*	@brief print summary of heap usage

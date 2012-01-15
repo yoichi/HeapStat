@@ -38,6 +38,18 @@ ULONG32 GetNtGlobalFlag()
 	return ntGlobalFlag;
 }
 
+ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress)
+{
+	if (IsTarget64())
+	{
+		return ustAddress + 0x10;
+	}
+	else
+	{
+		return ustAddress + 0xc;
+	}
+}
+
 std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
 {
 	std::vector<ULONG64> trace;
@@ -70,9 +82,10 @@ std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
 		dprintf("read depth failed\n");
 		return trace;
 	}
+
+	ULONG64 address = GetStackTraceArrayPtr(ustAddress);
 	if (isTarget64)
 	{
-		ULONG64 address = ustAddress + 0x10;
 		for (int i = 0; i < depth; i++)
 		{
 			ULONG64 sp;
@@ -87,7 +100,6 @@ std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
 	}
 	else
 	{
-		ULONG64 address = ustAddress + 0xc;
 		for (int i = 0; i < depth; i++)
 		{
 			ULONG32 sp;
