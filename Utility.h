@@ -32,3 +32,18 @@ ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress);
 *	@brief get stack trace from user mode stack trace database
 */
 std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress);
+
+/**
+*	@brief module information from LDR_DATA_TABLE_ENTRY
+*/
+struct ModuleInfo
+{
+	ULONG64 DllBase;
+	ULONG64 SizeOfImage;
+	CHAR FullDllName[MAX_PATH];
+};
+
+/**
+*	@brief get information of loaded modules in PEB::InMemoryOrderModuleList
+*/
+std::vector<ModuleInfo> GetLoadedModules();

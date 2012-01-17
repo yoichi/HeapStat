@@ -26,7 +26,7 @@ public:
 	/**
 	*	@copydoc IProcessor::StartHeap()
 	*/
-	void StartHeap(ULONG64 heapAddress) {}
+	void StartHeap(ULONG64 /*heapAddress*/) {}
 
 	/**
 	*	@copydoc IProcessor::Register()
@@ -38,7 +38,7 @@ public:
 	/**
 	*	@copydoc IProcessor::FinishHeap()
 	*/
-	void FinishHeap(ULONG64 heapAddress) {}
+	void FinishHeap(ULONG64 /*heapAddress*/) {}
 
 	/**
 	*	@brief print summary of heap usage

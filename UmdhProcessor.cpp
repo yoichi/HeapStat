@@ -32,6 +32,25 @@ UmdhProcessor::UmdhProcessor(PCSTR filename)
 		}
 		throw -1;
 	}
+	CString str = "// Loaded modules:\n"
+		"//     Base Size Module\n";
+
+	std::vector<ModuleInfo> modules = GetLoadedModules();
+	for (std::vector<ModuleInfo>::iterator itr = modules.begin(); itr != modules.end(); itr++)
+	{
+		CString line;
+		line.Format("//    %16I64X %8I64X %s\n", itr->DllBase, itr->SizeOfImage, itr->FullDllName);
+		str += line;
+	}
+	str += "//\n";
+	DWORD written;
+	if (!WriteFile(output_, (LPCSTR)str, str.GetLength(), &written, NULL) || written != (DWORD)str.GetLength())
+	{
+		dprintf("%s: WriteFile failed %d (written %d)\n", __FUNCTION__, GetLastError(), written);
+		CloseHandle(output_);
+		output_ = INVALID_HANDLE_VALUE;
+		throw -1;
+	}
 }
 
 UmdhProcessor::~UmdhProcessor()
