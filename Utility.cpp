@@ -16,7 +16,7 @@ ULONG32 GetNtGlobalFlag()
 	GetPebAddress(NULL, &address);
 	if (IsTarget64())
 	{
-		if (!GetFieldValue(address, "ntdll!_PEB", "NtGlobalFlag", ntGlobalFlag))
+		if (GetFieldValue(address, "ntdll!_PEB", "NtGlobalFlag", ntGlobalFlag) != 0)
 		{
 			dprintf("read NtGlobalFlag failed\n");
 			return 0;
@@ -125,21 +125,21 @@ std::vector<ModuleInfo> GetLoadedModules()
 	if (IsTarget64())
 	{
 		ULONG64 ldr;
-		if (!GetFieldValue(pebAddress, "ntdll!_PEB", "Ldr", ldr))
+		if (GetFieldValue(pebAddress, "ntdll!_PEB", "Ldr", ldr) != 0)
 		{
 			dprintf("read Ldr failed\n");
 			goto ERROR_EXIT;
 		}
 
 		ULONG offset;
-		if (!GetFieldOffset("ntdll!_PEB_LDR_DATA", "InMemoryOrderModuleList", &offset))
+		if (GetFieldOffset("ntdll!_PEB_LDR_DATA", "InMemoryOrderModuleList", &offset) != 0)
 		{
 			dprintf("GetFieldOffset(_PEB_LDR_DATA::InMemoryOrderModuleList) failed\n");
 			goto ERROR_EXIT;
 		}
 		ULONG64 headAddress = ldr + offset;
 		LIST_ENTRY64 inMemoryOrderModuleList;
-		if (!GetFieldValue(ldr, "ntdll!_PEB_LDR_DATA", "InMemoryOrderModuleList", inMemoryOrderModuleList))
+		if (GetFieldValue(ldr, "ntdll!_PEB_LDR_DATA", "InMemoryOrderModuleList", inMemoryOrderModuleList) != 0)
 		{
 			dprintf("read InMemoryOrderModuleList failed\n");
 			goto ERROR_EXIT;
@@ -158,13 +158,13 @@ std::vector<ModuleInfo> GetLoadedModules()
 
 			// LDR_DATA_TABLE_ENTRY at address - sizeof(entry)
 			ULONG64 dllBase, sizeOfImage;
-			if (!GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "DllBase", dllBase))
+			if (GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "DllBase", dllBase) != 0)
 			{
 				dprintf("read DllBase around %p failed\n", address - sizeof(entry));
 				goto ERROR_EXIT;
 			}
 			moduleInfo.DllBase = dllBase;
-			if (!GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "SizeOfImage", sizeOfImage))
+			if (GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "SizeOfImage", sizeOfImage) != 0)
 			{
 				dprintf("read SizeOfImage around %p failed\n", address - sizeof(entry));
 				goto ERROR_EXIT;
@@ -178,7 +178,7 @@ std::vector<ModuleInfo> GetLoadedModules()
 				USHORT MaximumLength;
 				ULONG64 Buffer;
 			} fullDllName;
-			if (!GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "FullDllName", fullDllName))
+			if (GetFieldValue(address - sizeof(entry), "ntdll!_LDR_DATA_TABLE_ENTRY", "FullDllName", fullDllName) != 0)
 			{
 				dprintf("read FullDllName around %p failed\n", address - sizeof(entry));
 				goto ERROR_EXIT;

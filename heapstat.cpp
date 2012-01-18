@@ -104,7 +104,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 
 	if (isTarget64)
 	{
-		if (!GetFieldValue(address, "ntdll!_PEB", "NumberOfHeaps", numberOfHeaps))
+		if (GetFieldValue(address, "ntdll!_PEB", "NumberOfHeaps", numberOfHeaps) != 0)
 		{
 			dprintf("read NumberOfHeaps failed\n");
 			return 0;
@@ -127,7 +127,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 	ULONG64 processHeaps;
 	if (isTarget64)
 	{
-		if (!GetFieldValue(address, "ntdll!_PEB", "ProcessHeaps", processHeaps))
+		if (GetFieldValue(address, "ntdll!_PEB", "ProcessHeaps", processHeaps) != 0)
 		{
 			dprintf("read ProcessHeaps failed\n");
 			return 0;
@@ -326,7 +326,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	const ULONG blockSize = 16;
 	ULONG cb;
 	Heap64Entry encoding;
-	if (!GetFieldValue(heapAddress, "ntdll!_HEAP", "Encoding", encoding))
+	if (GetFieldValue(heapAddress, "ntdll!_HEAP", "Encoding", encoding) != 0)
 	{
 		dprintf("read Encoding failed\n");
 		return FALSE;
