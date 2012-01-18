@@ -472,7 +472,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	return TRUE;
 }
 
-static BOOL AnalyzeHeap(IProcessor *processor, BOOL force, BOOL verbose)
+static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 {
 	ULONG64 heapAddress;
 	ULONG32 ntGlobalFlag;
@@ -494,11 +494,6 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL force, BOOL verbose)
 	}
 	else
 	{
-		if (!force)
-		{
-			dprintf("please set ust or hpa by gflags.exe\n");
-			return FALSE;
-		}
 		dprintf("set ust or hpa by gflags.exe for detailed information\n");
 	}
 
@@ -560,7 +555,7 @@ DECLARE_API(heapstat)
 
 	SummaryProcessor processor;
 
-	if (!AnalyzeHeap(&processor, TRUE, verbose))
+	if (!AnalyzeHeap(&processor, verbose))
 	{
 		return;
 	}
@@ -575,12 +570,24 @@ DECLARE_API(umdh)
 	UNREFERENCED_PARAMETER(hCurrentThread);
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
-	UmdhProcessor processor(args);
+	if (!(GetNtGlobalFlag() & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)))
+	{
+		dprintf("please set ust or hpa by gflags.exe\n");
+		return;
+	}
 
-	if (!AnalyzeHeap(&processor, FALSE, FALSE))
+	UmdhProcessor *processor(0);
+	try
+	{
+		processor = new UmdhProcessor(args);
+	}
+	catch (...)
 	{
 		return;
 	}
+
+	AnalyzeHeap(processor, FALSE);
+	delete processor;
 }
 
 DECLARE_API(ust)
