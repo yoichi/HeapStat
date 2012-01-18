@@ -10,30 +10,27 @@ void SummaryProcessor::Register(ULONG64 ustAddress,
 	UNREFERENCED_PARAMETER(userAddress);
 	UNREFERENCED_PARAMETER(userSize);
 
-	if (ustAddress != 0)
+	std::map<ULONG64, UstRecord>::iterator itr = records_.find(ustAddress);
+	if (itr == records_.end())
 	{
-		std::map<ULONG64, UstRecord>::iterator itr = records_.find(ustAddress);
-		if (itr == records_.end())
+		UstRecord record;
+		record.ustAddress = ustAddress;
+		record.count = 1;
+		record.totalSize = record.maxSize = size;
+		record.largestEntry = address;
+		records_[ustAddress] = record;
+	}
+	else
+	{
+		UstRecord record = itr->second;
+		record.count++;
+		record.totalSize += size;
+		if (record.maxSize < size)
 		{
-			UstRecord record;
-			record.ustAddress = ustAddress;
-			record.count = 1;
-			record.totalSize = record.maxSize = size;
+			record.maxSize = size;
 			record.largestEntry = address;
-			records_[ustAddress] = record;
 		}
-		else
-		{
-			UstRecord record = itr->second;
-			record.count++;
-			record.totalSize += size;
-			if (record.maxSize < size)
-			{
-				record.maxSize = size;
-				record.largestEntry = address;
-			}
-			records_[ustAddress] = record;
-		}
+		records_[ustAddress] = record;
 	}
 }
 
@@ -82,6 +79,10 @@ void SummaryProcessor::Print()
 
 void SummaryProcessor::PrintStackTrace(ULONG64 ustAddress)
 {
+	if (ustAddress == 0)
+	{
+		return;
+	}
 	PCSTR indent = "\t";
 	std::vector<ULONG64> trace = GetStackTrace(ustAddress);
 	dprintf("%sust at %p depth: %d\n", indent, ustAddress, trace.size());

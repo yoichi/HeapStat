@@ -208,7 +208,10 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			if (entry.ExtendedBlockSignature == 0x03)
 			{
-				// uncommitted bytes follows
+				if (verbose)
+				{
+					dprintf("uncommitted bytes follows\n");
+				}
 				break;
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
@@ -292,10 +295,14 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 					}
 					else
 					{
+						ULONG64 userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
+						ULONG64 userPtr = address + sizeof(entry);
 						if (verbose)
 						{
 							dprintf("\n");
+							dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, entry.Size * blockSize - userSize);
 						}
+						processor->Register(0, entry.Size * blockSize, address, userSize, userPtr);
 					}
 				}
 				else
@@ -355,7 +362,10 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			if (entry.ExtendedBlockSignature == 0x03)
 			{
-				// uncommitted bytes follows
+				if (verbose)
+				{
+					dprintf("uncommitted bytes follows\n");
+				}
 				break;
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
@@ -436,10 +446,14 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 					}
 					else
 					{
+						ULONG64 userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
+						ULONG64 userPtr = address + sizeof(entry);
 						if (verbose)
 						{
 							dprintf("\n");
+							dprintf("userPtr:%p, userSize:%p, extra:%p\n", userPtr, userSize, entry.Size * blockSize - userSize);
 						}
+						processor->Register(0, entry.Size * blockSize, address, userSize, userPtr);
 					}
 				}
 				else
@@ -458,7 +472,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	return TRUE;
 }
 
-static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
+static BOOL AnalyzeHeap(IProcessor *processor, BOOL force, BOOL verbose)
 {
 	ULONG64 heapAddress;
 	ULONG32 ntGlobalFlag;
@@ -481,7 +495,10 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	else
 	{
 		dprintf("please set ust or hpa by gflags.exe\n");
-		return FALSE;
+		if (!force)
+		{
+			return FALSE;
+		}
 	}
 
 	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
@@ -542,7 +559,7 @@ DECLARE_API(heapstat)
 
 	SummaryProcessor processor;
 
-	if (!AnalyzeHeap(&processor, verbose))
+	if (!AnalyzeHeap(&processor, TRUE, verbose))
 	{
 		return;
 	}
@@ -559,7 +576,7 @@ DECLARE_API(umdh)
 
 	UmdhProcessor processor(args);
 
-	if (!AnalyzeHeap(&processor, FALSE))
+	if (!AnalyzeHeap(&processor, FALSE, FALSE))
 	{
 		return;
 	}
