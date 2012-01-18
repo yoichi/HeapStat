@@ -328,14 +328,15 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
 	{
-		if (verbose)
-		{
-			dprintf("segment %d\n", index);
-		}
 		Heap64Segment segment;
 		if (!READMEMORY(heapAddress, segment))
 		{
+			dprintf("read HEAP_SEGMENT at %p failed\n", heapAddress);
 			return FALSE;
+		}
+		if (verbose)
+		{
+			dprintf("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
 		}
 
 		ULONG64 address = segment.FirstEntry;
