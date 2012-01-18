@@ -494,11 +494,12 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL force, BOOL verbose)
 	}
 	else
 	{
-		dprintf("please set ust or hpa by gflags.exe\n");
 		if (!force)
 		{
+			dprintf("please set ust or hpa by gflags.exe\n");
 			return FALSE;
 		}
+		dprintf("set ust or hpa by gflags.exe for detailed information\n");
 	}
 
 	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
