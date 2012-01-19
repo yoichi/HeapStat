@@ -196,6 +196,14 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		ULONG64 address = segment.FirstEntry;
 		while (address < segment.LastValidEntry)
 		{
+			if (address >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			{
+				if (verbose)
+				{
+					dprintf("uncommitted bytes follows\n");
+				}
+				break;
+			}
 			HeapEntry entry;
 			if (!READMEMORY(address, entry))
 			{
@@ -206,14 +214,6 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			{
 				dprintf("DecodeHeapEntry failed at %p\n", address);
 				return FALSE;
-			}
-			if (entry.ExtendedBlockSignature == 0x03)
-			{
-				if (verbose)
-				{
-					dprintf("uncommitted bytes follows\n");
-				}
-				break;
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
 			{
@@ -352,6 +352,14 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		ULONG64 address = segment.FirstEntry;
 		while (address < segment.LastValidEntry)
 		{
+			if (address >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			{
+				if (verbose)
+				{
+					dprintf("uncommitted bytes follows\n");
+				}
+				break;
+			}
 			Heap64Entry entry;
 			if (!READMEMORY(address, entry))
 			{
@@ -362,14 +370,6 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			{
 				dprintf("DecodeHeapEntry failed at %p\n", address);
 				return FALSE;
-			}
-			if (entry.ExtendedBlockSignature == 0x03)
-			{
-				if (verbose)
-				{
-					dprintf("uncommitted bytes follows\n");
-				}
-				break;
 			}
 			if (entry.ExtendedBlockSignature != 0x01)
 			{
