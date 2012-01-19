@@ -6,6 +6,11 @@
 class SummaryProcessor : public IProcessor
 {
 private:
+	/**
+	*	@brief total reserved size
+	*/
+	ULONG64 totalSize_;
+
 	struct UstRecord {
 		ULONG64 ustAddress;
 		ULONG64 count;
@@ -24,9 +29,24 @@ private:
 
 public:
 	/**
+	*	@brief constructor
+	*/
+	SummaryProcessor();
+
+	/**
 	*	@copydoc IProcessor::StartHeap()
 	*/
 	void StartHeap(ULONG64 /*heapAddress*/) {}
+
+	/**
+	*	@copydoc IProcessor::StartSegment()
+	*/
+	void StartSegment(ULONG64 start, ULONG64 end);
+
+	/**
+	*	@copydoc IProcessor::FinishSegment()
+	*/
+	void FinishSegment(ULONG64 /*start*/, ULONG64 /*end*/) {}
 
 	/**
 	*	@copydoc IProcessor::Register()

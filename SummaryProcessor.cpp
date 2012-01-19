@@ -3,6 +3,16 @@
 #include "SummaryProcessor.h"
 #include "Utility.h"
 
+SummaryProcessor::SummaryProcessor()
+: totalSize_(0)
+{
+}
+
+void SummaryProcessor::StartSegment(ULONG64 start, ULONG64 end)
+{
+	totalSize_ += end - start;
+}
+
 void SummaryProcessor::Register(ULONG64 ustAddress,
 		ULONG64 size, ULONG64 address,
 		ULONG64 userSize, ULONG64 userAddress)
@@ -54,12 +64,14 @@ void SummaryProcessor::Print()
 
 	if (IsPtr64())
 	{
+		dprintf("total size: %p\n", totalSize_);
 		dprintf("----------------------------------------------------------------------------------------\n");
 		dprintf("             ust,            count,            total,              max,            entry\n");
 		dprintf("----------------------------------------------------------------------------------------\n");
 	}
 	else
 	{
+		dprintf("total size: %p\n", totalSize_);
 		dprintf("------------------------------------------------\n");
 		dprintf("     ust,    count,    total,      max,    entry\n");
 		dprintf("------------------------------------------------\n");

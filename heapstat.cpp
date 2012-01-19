@@ -191,6 +191,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		{
 			dprintf("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
 		}
+		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
 		ULONG64 address = segment.FirstEntry;
 		while (address < segment.LastValidEntry)
@@ -315,6 +316,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			address += entry.Size * blockSize;
 		}
+		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x10;
 		index++;
 	}
