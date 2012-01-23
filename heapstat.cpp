@@ -275,7 +275,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 								USHORT extra;
 								if (READMEMORY(address + sizeof(entry) + 0xc, extra))
 								{
-									if (entry.Size * blockSize > extra)
+									if (entry.Size * blockSize >= extra)
 									{
 										userSize = entry.Size * blockSize - extra;
 										userPtr = address + sizeof(entry) + 0x10;
@@ -431,7 +431,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 								USHORT extra;
 								if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
 								{
-									if (entry.Size * blockSize > extra)
+									if (entry.Size * blockSize >= extra)
 									{
 										userSize = entry.Size * blockSize - extra;
 										userPtr = address + sizeof(entry) + 0x20;
