@@ -209,13 +209,27 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 
 			// skip the last entry in the segment
-			if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
 			{
-				if (verbose)
+				if (entry.ExtendedBlockSignature == 0x03)
 				{
-					dprintf("uncommitted bytes follows\n");
+					if (verbose)
+					{
+						dprintf("uncommitted bytes follows\n");
+					}
+					break;
 				}
-				break;
+			}
+			else
+			{
+				if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+				{
+					if (verbose)
+					{
+						dprintf("uncommitted bytes follows\n");
+					}
+					break;
+				}
 			}
 
 			if (!(ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) || entry.ExtendedBlockSignature != 0x01)
@@ -368,13 +382,27 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 
 			// skip the last entry in the segment
-			if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
 			{
-				if (verbose)
+				if (entry.ExtendedBlockSignature == 0x03)
 				{
-					dprintf("uncommitted bytes follows\n");
+					if (verbose)
+					{
+						dprintf("uncommitted bytes follows\n");
+					}
+					break;
 				}
-				break;
+			}
+			else
+			{
+				if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+				{
+					if (verbose)
+					{
+						dprintf("uncommitted bytes follows\n");
+					}
+					break;
+				}
 			}
 
 			if (!(ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) || entry.ExtendedBlockSignature != 0x01)
