@@ -287,7 +287,6 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, std::list<HeapRecord> &lfhRecords)
 	ULONG32 zone = start;
 	do
 	{
-		dprintf("zone: %p\n", zone);
 		LIST_ENTRY32 listEntry;
 		if (!READMEMORY(zone, listEntry))
 		{
