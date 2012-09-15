@@ -120,6 +120,10 @@ std::vector<ModuleInfo> GetLoadedModules()
 	std::vector<ModuleInfo> info;
 	ULONG64 pebAddress;
 	GetPebAddress(NULL, &pebAddress);
+	if (!IsTarget64() && IsPtr64())
+	{
+		pebAddress -= PEB32_OFFSET;
+	}
 
 	ULONG cb;
 	if (IsTarget64())
