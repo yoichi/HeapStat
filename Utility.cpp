@@ -188,14 +188,14 @@ std::vector<ModuleInfo> GetLoadedModules()
 				goto ERROR_EXIT;
 			}
 			std::vector<wchar_t> unicode;
-			unicode.resize(fullDllName.Length);
-			if (!ReadMemory(fullDllName.Buffer, &unicode[0], fullDllName.Length * sizeof(wchar_t), &cb) || cb != fullDllName.Length * sizeof(wchar_t))
+			unicode.resize(fullDllName.Length / sizeof(wchar_t));
+			if (!ReadMemory(fullDllName.Buffer, &unicode[0], fullDllName.Length, &cb) || cb != fullDllName.Length)
 			{
-				dprintf("read unicode at %p failed\n", fullDllName.Buffer);
+				dprintf("read unicode at %p %d failed\n", fullDllName.Buffer, (int)fullDllName.Length);
 				goto ERROR_EXIT;
 			}
 		
-			int written = WideCharToMultiByte(CP_ACP, 0, &unicode[0], fullDllName.Length,
+			int written = WideCharToMultiByte(CP_ACP, 0, &unicode[0], fullDllName.Length / sizeof(wchar_t),
 				moduleInfo.FullDllName, sizeof(moduleInfo.FullDllName), NULL, NULL);
 			if (written < 0 || written >= sizeof(moduleInfo.FullDllName))
 			{
@@ -263,14 +263,14 @@ std::vector<ModuleInfo> GetLoadedModules()
 				goto ERROR_EXIT;
 			}
 			std::vector<wchar_t> unicode;
-			unicode.resize(fullDllName.Length);
-			if (!ReadMemory(fullDllName.Buffer, &unicode[0], fullDllName.Length * sizeof(wchar_t), &cb) || cb != fullDllName.Length * sizeof(wchar_t))
+			unicode.resize(fullDllName.Length / sizeof(wchar_t));
+			if (!ReadMemory(fullDllName.Buffer, &unicode[0], fullDllName.Length, &cb) || cb != fullDllName.Length)
 			{
-				dprintf("read unicode at %p failed\n", fullDllName.Buffer);
+				dprintf("read unicode at %p %d failed\n", (ULONG64)fullDllName.Buffer, (int)fullDllName.Length);
 				goto ERROR_EXIT;
 			}
 		
-			int written = WideCharToMultiByte(CP_ACP, 0, &unicode[0], fullDllName.Length,
+			int written = WideCharToMultiByte(CP_ACP, 0, &unicode[0], fullDllName.Length / sizeof(wchar_t),
 				moduleInfo.FullDllName, sizeof(moduleInfo.FullDllName), NULL, NULL);
 			if (written < 0 || written >= sizeof(moduleInfo.FullDllName))
 			{
