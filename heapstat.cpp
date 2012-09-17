@@ -604,8 +604,8 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		}
 		if (verbose)
 		{
-			dprintf("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
-			dprintf("NumberOfUnCommittedPages:%08x, NumberOfUnCommittedRanges:%08x\n", segment.NumberOfUnCommittedPages, segment.NumberOfUnCommittedRanges);
+			dprintf("Segment at %p to %p\n", heapAddress, (ULONG64)segment.LastValidEntry);
+			dprintf("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		}
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
@@ -711,7 +711,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		if (verbose)
 		{
 			dprintf("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
-			dprintf("NumberOfUnCommittedPages:%08x, NumberOfUnCommittedRanges:%08x\n", segment.NumberOfUnCommittedPages, segment.NumberOfUnCommittedRanges);
+			dprintf("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		}
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
