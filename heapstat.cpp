@@ -324,6 +324,79 @@ bool predicate(const HeapRecord &record1, const HeapRecord &record2)
 	return record1.address < record2.address;
 }
 
+BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 ntGlobalFlag, HeapRecord &record)
+{
+	const ULONG blockSize = 8;
+	ULONG cb;
+	if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
+	{
+		ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x18 : 0;
+		ULONG32 ustAddress;
+		if (!READMEMORY(address + sizeof(entry) + offset, ustAddress))
+		{
+			dprintf("read ustAddress at %p failed", address + sizeof(entry) + offset);
+			return FALSE;
+		}
+		else
+		{
+			record.ustAddress = ustAddress;
+			if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+			{
+				USHORT userSize_;
+				if (READMEMORY(address + sizeof(entry) + 0x8, userSize_))
+				{
+					if (entry.Size * blockSize > userSize_)
+					{
+						record.userSize = userSize_;
+						record.userAddress = address + sizeof(entry) + 0x20;
+					}
+					else
+					{
+						dprintf("invalid userSize 0x%04x\n", userSize_);
+						return FALSE;
+					}
+				}
+				else
+				{
+					dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
+					return FALSE;
+				}
+			}
+			else // NT_GLOBAL_FLAG_UST
+			{
+				USHORT extra;
+				if (READMEMORY(address + sizeof(entry) + 0xc, extra))
+				{
+					if (entry.Size * blockSize >= extra)
+					{
+						record.userSize = entry.Size * blockSize - extra;
+						record.userAddress = address + sizeof(entry) + 0x10;
+					}
+					else
+					{
+						dprintf("invalid extra 0x%04x\n", extra);
+						return FALSE;
+					}
+				}
+				else
+				{
+					dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
+					return FALSE;
+				}
+			}
+		}
+	}
+	else
+	{
+		record.ustAddress = 0;
+		record.userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
+		record.userAddress = address + sizeof(entry);
+	}
+	record.size = entry.Size * blockSize;
+	record.address = address;
+	return TRUE;
+}
+
 static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	std::list<HeapRecord> lfhRecords;
@@ -394,108 +467,20 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			{
 				if (verbose)
 				{
-					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x, ", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
+					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
 				}
 				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
 				if (entry.Flags == busy)
 				{
-					if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
+					HeapRecord record;
+					if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
 					{
-						ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x18 : 0;
-						ULONG32 ustAddress;
-						if (!READMEMORY(address + sizeof(entry) + offset, ustAddress))
-						{
-							if (verbose)
-							{
-								dprintf("\n");
-							}
-						}
-						else
-						{
-							if (verbose)
-							{
-								dprintf("0x%p\n", ustAddress);
-							}
-							HeapRecord record;
-							record.ustAddress = ustAddress;
-							record.size = entry.Size * blockSize;
-							record.address = address;
-							record.userSize = 0;
-							record.userAddress = 0;
-							if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
-							{
-								USHORT userSize_;
-								if (READMEMORY(address + sizeof(entry) + 0x8, userSize_))
-								{
-									if (entry.Size * blockSize > userSize_)
-									{
-										record.userSize = userSize_;
-										record.userAddress = address + sizeof(entry) + 0x20;
-										if (verbose)
-										{
-											dprintf("userPtr:%p, userSize:%p, extra:%p\n", record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
-										}
-									}
-									else
-									{
-										dprintf("invalid userSize 0x%04x\n", userSize_);
-									}
-								}
-								else
-								{
-									dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
-								}
-							}
-							else // NT_GLOBAL_FLAG_UST
-							{
-								USHORT extra;
-								if (READMEMORY(address + sizeof(entry) + 0xc, extra))
-								{
-									if (entry.Size * blockSize >= extra)
-									{
-										record.userSize = entry.Size * blockSize - extra;
-										record.userAddress = address + sizeof(entry) + 0x10;
-										if (verbose)
-										{
-											dprintf("userPtr:%p, userSize:%p, extra:%p\n",
-												record.userAddress, record.userSize, (ULONG64)extra);
-										}
-									}
-									else
-									{
-										dprintf("invalid extra 0x%04x\n", extra);
-									}
-								}
-								else
-								{
-									dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
-								}
-							}
-							Register(record, lfhRecordsInSegment, processor);
-						}
-					}
-					else
-					{
-						HeapRecord record;
-						record.ustAddress = 0;
-						record.size = entry.Size * blockSize;
-						record.address = address;
-						record.userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
-						record.userAddress = address + sizeof(entry);
 						if (verbose)
 						{
-							dprintf("\n");
-							dprintf("userPtr:%p, userSize:%p, extra:%p\n",
-								record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
+							dprintf("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+								record.ustAddress, record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
 						}
 						Register(record, lfhRecordsInSegment, processor);
-					}
-				}
-				else
-				{
-					if (verbose)
-					{
-						dprintf("\n");
 					}
 				}
 			}
