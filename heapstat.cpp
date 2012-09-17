@@ -298,7 +298,8 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			}
 			entry.Size = blockSize;
 
-			if (entry.ExtendedBlockSignature == 0xc2)
+			UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
+			if (entry.ExtendedBlockSignature == busy)
 			{
 				HeapRecord record;
 				if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
