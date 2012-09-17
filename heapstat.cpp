@@ -180,7 +180,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 
 static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 ntGlobalFlag, HeapRecord &record)
 {
-	const ULONG blockSize = 8;
+	const ULONG blockUnit = 8;
 	ULONG cb;
 	if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
 	{
@@ -199,7 +199,7 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 				USHORT userSize_;
 				if (READMEMORY(address + sizeof(entry) + 0x8, userSize_))
 				{
-					if (entry.Size * blockSize > userSize_)
+					if (entry.Size * blockUnit > userSize_)
 					{
 						record.userSize = userSize_;
 						record.userAddress = address + sizeof(entry) + 0x20;
@@ -221,9 +221,9 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 				USHORT extra;
 				if (READMEMORY(address + sizeof(entry) + 0xc, extra))
 				{
-					if (entry.Size * blockSize >= extra)
+					if (entry.Size * blockUnit >= extra)
 					{
-						record.userSize = entry.Size * blockSize - extra;
+						record.userSize = entry.Size * blockUnit - extra;
 						record.userAddress = address + sizeof(entry) + 0x10;
 					}
 					else
@@ -243,10 +243,10 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 	else
 	{
 		record.ustAddress = 0;
-		record.userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
+		record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
 		record.userAddress = address + sizeof(entry);
 	}
-	record.size = entry.Size * blockSize;
+	record.size = entry.Size * blockUnit;
 	record.address = address;
 	return TRUE;
 }
@@ -290,6 +290,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 		ULONG64 address = userBlocks + 0x10;
 		for (USHORT i = 0; i < blockCount; i++)
 		{
+			const ULONG blockUnit = 8;
 			HeapEntry entry;
 			if (!READMEMORY(address, entry))
 			{
@@ -312,7 +313,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 				}
 			}
 
-			address += blockSize * 8;
+			address += blockSize * blockUnit;
 		}
 		subsegment += 0x20; // sizeof(_HEAP_SUBSEGMENT)
 	}
@@ -391,7 +392,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	AnalyzeLFH32(heapAddress, ntGlobalFlag, lfhRecords);
 	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
-	const ULONG blockSize = 8;
+	const ULONG blockUnit = 8;
 	ULONG cb;
 	HeapEntry encoding;
 	if (!READMEMORY(heapAddress + 0x50, encoding))
@@ -443,7 +444,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 
 			// skip the last entry in the segment
-			if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			if (address + entry.Size * blockUnit >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
 			{
 				if (verbose)
 				{
@@ -467,13 +468,13 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 						if (verbose)
 						{
 							dprintf("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
-								record.ustAddress, record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
+								record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						}
 						Register(record, lfhRecordsInSegment, processor);
 					}
 				}
 			}
-			address += entry.Size * blockSize;
+			address += entry.Size * blockUnit;
 		}
 		for (std::list<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
 			itr != lfhRecordsInSegment.end();
@@ -495,7 +496,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 {
 	std::list<HeapRecord> lfhRecords;
 	lfhRecords.sort(predicate);
-	const ULONG blockSize = 16;
+	const ULONG blockUnit = 16;
 	ULONG cb;
 	Heap64Entry encoding;
 	if (GetFieldValue(heapAddress, "ntdll!_HEAP", "Encoding", encoding) != 0)
@@ -536,7 +537,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 
 			// skip the last entry in the segment
-			if (address + entry.Size * blockSize >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
+			if (address + entry.Size * blockUnit >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
 			{
 				if (verbose)
 				{
@@ -573,7 +574,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 							}
 							HeapRecord record;
 							record.ustAddress = ustAddress;
-							record.size = entry.Size * blockSize;
+							record.size = entry.Size * blockUnit;
 							record.address = address;
 							record.userSize = 0;
 							record.userAddress = 0;
@@ -582,12 +583,12 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 								USHORT userSize_;
 								if (READMEMORY(address + sizeof(entry) + 0x10, userSize_))
 								{
-									if (entry.Size * blockSize > userSize_)
+									if (entry.Size * blockUnit > userSize_)
 									{
 										record.userSize = userSize_;
 										record.userAddress = address + sizeof(entry) + 0x40;
 										dprintf("userPtr:%p, userSize:%p, extra:%p\n",
-											record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
+											record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 									}
 									else
 									{
@@ -604,9 +605,9 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 								USHORT extra;
 								if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
 								{
-									if (entry.Size * blockSize >= extra)
+									if (entry.Size * blockUnit >= extra)
 									{
-										record.userSize = entry.Size * blockSize - extra;
+										record.userSize = entry.Size * blockUnit - extra;
 										record.userAddress = address + sizeof(entry) + 0x20;
 										if (verbose)
 										{
@@ -631,15 +632,15 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 					{
 						HeapRecord record;
 						record.ustAddress = 0;
-						record.size = entry.Size * blockSize;
+						record.size = entry.Size * blockUnit;
 						record.address = address;
-						record.userSize = entry.Size * blockSize - entry.ExtendedBlockSignature;
+						record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
 						record.userAddress = address + sizeof(entry);
 						if (verbose)
 						{
 							dprintf("\n");
 							dprintf("userPtr:%p, userSize:%p, extra:%p\n",
-								record.userAddress, record.userSize, entry.Size * blockSize - record.userSize);
+								record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						}
 						Register(record, lfhRecords, processor);
 					}
@@ -652,7 +653,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 					}
 				}
 			}
-			address += entry.Size * blockSize;
+			address += entry.Size * blockUnit;
 		}
 		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
