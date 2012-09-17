@@ -178,153 +178,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 	return heap;
 }
 
-static BOOL AnalyzeLFHZone32(ULONG64 zone, std::list<HeapRecord> &lfhRecords)
-{
-	ULONG cb;
-	ULONG32 limit;
-	if (!READMEMORY(zone + 0xc, limit))
-	{
-		dprintf("read _LFH_BLOCK_ZONE::Limit failed\n");
-		return FALSE;
-	}
-
-	ULONG64 subsegment = zone + 0x10;
-	while (subsegment < limit)
-	{
-		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
-		USHORT blockCount; // _HEAP_SUBSEGMENT::BlockCount
-		if (!READMEMORY(subsegment + 0x10, blockSize))
-		{
-			dprintf("read _HEAP_SUBSEGMENT::BlockSize failed\n");
-			return FALSE;
-		}
-		if (blockSize == 0)
-		{
-			// rest are unused subsegments
-			break;
-		}
-		if (!READMEMORY(subsegment + 0x14, blockCount))
-		{
-			dprintf("read _HEAP_SUBSEGMENT::BlockCount failed\n");
-			return FALSE;
-		}
-		ULONG32 userBlocks; // _HEAP_SUBSEGMENT::UserBlocks
-		if (!READMEMORY(subsegment + 0x4, userBlocks))
-		{
-			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
-			return FALSE;
-		}
-		ULONG64 address = userBlocks + 0x10;
-		for (USHORT i = 0; i < blockCount; i++)
-		{
-			HeapEntry entry;
-			if (!READMEMORY(address, entry))
-			{
-				dprintf("read LFH HeapEntry failed\n");
-				return FALSE;
-			}
-
-			if (entry.ExtendedBlockSignature == 0xc2)
-			{
-				USHORT extra;
-				if (!READMEMORY(address + sizeof(entry) + 0xc, extra))
-				{
-					dprintf("read extra failed\n");
-					return FALSE;
-				}
-				if (extra < 0x18 || extra > blockSize * 8)
-				{
-					dprintf("address %p invalid extra 0x%04x\n", address, extra);
-				}
-				HeapRecord record;
-				record.address = address;
-				record.size = blockSize * 8;
-				record.userAddress = address + 0x18;
-				record.userSize = record.size - extra;
-				ULONG32 ustAddress;
-				if (!READMEMORY(address + 0x8, ustAddress))
-				{
-					dprintf("read ustAddress failed\n");
-					return FALSE;
-				}
-				record.ustAddress = ustAddress;
-				lfhRecords.push_back(record);
-			}
-
-			address += blockSize * 8;
-		}
-		subsegment += 0x20; // sizeof(_HEAP_SUBSEGMENT)
-	}
-	return TRUE;
-}
-
-static BOOL AnalyzeLFH32(ULONG64 heapAddress, std::list<HeapRecord> &lfhRecords)
-{
-	ULONG cb;
-	UCHAR type; // _HEAP::FrontEndHeapType
-	if (!READMEMORY(heapAddress + 0xda, type))
-	{
-		dprintf("read FrontEndHeapType failed\n");
-		return FALSE;
-	}
-	if (type != 0x02 /* LFH */)
-	{
-		return TRUE;
-	}
-
-	ULONG32 frontEndHeap;
-	if (!READMEMORY(heapAddress + 0xd4, frontEndHeap))
-	{
-		dprintf("read FrontEndHeap failed\n");
-		return FALSE;
-	}
-	if (frontEndHeap == 0)
-	{
-		return TRUE;
-	}
-
-	ULONG32 start = frontEndHeap + 0x18; // _LFH_HEAP::SubSegmentZones
-	ULONG32 zone = start;
-	do
-	{
-		LIST_ENTRY32 listEntry;
-		if (!READMEMORY(zone, listEntry))
-		{
-			dprintf("read SubsegmentZones failed\n");
-			return FALSE;
-		}
-		zone = listEntry.Flink;
-		if (!AnalyzeLFHZone32(zone, lfhRecords))
-		{
-			return FALSE;
-		}
-	} while (zone != start);
-	return TRUE;
-}
-
-static void Register(
-		const HeapRecord &record,
-		std::list<HeapRecord> &lfhRecords,
-		IProcessor *processor)
-{
-	while (!lfhRecords.empty() && lfhRecords.begin()->address < record.address)
-	{
-		std::list<HeapRecord>::iterator itr = lfhRecords.begin();
-		//dprintf("Register: insert entry %p\n", itr->address);
-		processor->Register(itr->ustAddress,
-			itr->size, itr->address, itr->userSize, itr->userAddress);
-		lfhRecords.pop_front();
-	}
-	processor->Register(record.ustAddress,
-		record.size, record.address, record.userSize, record.userAddress);
-}
-
-bool predicate(const HeapRecord &record1, const HeapRecord &record2)
-{
-	return record1.address < record2.address;
-}
-
-BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 ntGlobalFlag, HeapRecord &record)
+static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 ntGlobalFlag, HeapRecord &record)
 {
 	const ULONG blockSize = 8;
 	ULONG cb;
@@ -397,11 +251,145 @@ BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 ntGlobal
 	return TRUE;
 }
 
+static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+{
+	ULONG cb;
+	ULONG32 limit;
+	if (!READMEMORY(zone + 0xc, limit))
+	{
+		dprintf("read _LFH_BLOCK_ZONE::Limit failed\n");
+		return FALSE;
+	}
+
+	ULONG64 subsegment = zone + 0x10;
+	while (subsegment < limit)
+	{
+		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
+		USHORT blockCount; // _HEAP_SUBSEGMENT::BlockCount
+		if (!READMEMORY(subsegment + 0x10, blockSize))
+		{
+			dprintf("read _HEAP_SUBSEGMENT::BlockSize failed\n");
+			return FALSE;
+		}
+		if (blockSize == 0)
+		{
+			// rest are unused subsegments
+			break;
+		}
+		if (!READMEMORY(subsegment + 0x14, blockCount))
+		{
+			dprintf("read _HEAP_SUBSEGMENT::BlockCount failed\n");
+			return FALSE;
+		}
+		ULONG32 userBlocks; // _HEAP_SUBSEGMENT::UserBlocks
+		if (!READMEMORY(subsegment + 0x4, userBlocks))
+		{
+			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
+			return FALSE;
+		}
+		ULONG64 address = userBlocks + 0x10;
+		for (USHORT i = 0; i < blockCount; i++)
+		{
+			HeapEntry entry;
+			if (!READMEMORY(address, entry))
+			{
+				dprintf("read LFH HeapEntry failed\n");
+				return FALSE;
+			}
+			entry.Size = blockSize;
+
+			if (entry.ExtendedBlockSignature == 0xc2)
+			{
+				HeapRecord record;
+				if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
+				{
+					lfhRecords.push_back(record);
+				}
+				else
+				{
+					return FALSE;
+				}
+			}
+
+			address += blockSize * 8;
+		}
+		subsegment += 0x20; // sizeof(_HEAP_SUBSEGMENT)
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+{
+	ULONG cb;
+	UCHAR type; // _HEAP::FrontEndHeapType
+	if (!READMEMORY(heapAddress + 0xda, type))
+	{
+		dprintf("read FrontEndHeapType failed\n");
+		return FALSE;
+	}
+	if (type != 0x02 /* LFH */)
+	{
+		return TRUE;
+	}
+
+	ULONG32 frontEndHeap;
+	if (!READMEMORY(heapAddress + 0xd4, frontEndHeap))
+	{
+		dprintf("read FrontEndHeap failed\n");
+		return FALSE;
+	}
+	if (frontEndHeap == 0)
+	{
+		return TRUE;
+	}
+
+	ULONG32 start = frontEndHeap + 0x18; // _LFH_HEAP::SubSegmentZones
+	ULONG32 zone = start;
+	do
+	{
+		LIST_ENTRY32 listEntry;
+		if (!READMEMORY(zone, listEntry))
+		{
+			dprintf("read SubsegmentZones failed\n");
+			return FALSE;
+		}
+		zone = listEntry.Flink;
+		if (!AnalyzeLFHZone32(zone, ntGlobalFlag, lfhRecords))
+		{
+			return FALSE;
+		}
+	} while (zone != start);
+	return TRUE;
+}
+
+static void Register(
+		const HeapRecord &record,
+		std::list<HeapRecord> &lfhRecords,
+		IProcessor *processor)
+{
+	while (!lfhRecords.empty() && lfhRecords.begin()->address < record.address)
+	{
+		std::list<HeapRecord>::iterator itr = lfhRecords.begin();
+		//dprintf("Register: insert entry %p\n", itr->address);
+		processor->Register(itr->ustAddress,
+			itr->size, itr->address, itr->userSize, itr->userAddress);
+		lfhRecords.pop_front();
+	}
+	processor->Register(record.ustAddress,
+		record.size, record.address, record.userSize, record.userAddress);
+}
+
+bool predicate(const HeapRecord &record1, const HeapRecord &record2)
+{
+	return record1.address < record2.address;
+}
+
 static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	std::list<HeapRecord> lfhRecords;
-	AnalyzeLFH32(heapAddress, lfhRecords);
+	AnalyzeLFH32(heapAddress, ntGlobalFlag, lfhRecords);
 	lfhRecords.sort(predicate);
+	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 	const ULONG blockSize = 8;
 	ULONG cb;
 	HeapEntry encoding;
