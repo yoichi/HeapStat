@@ -803,6 +803,15 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			address += entry.Size * blockUnit;
 		}
+		for (std::list<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
+			itr != lfhRecordsInSegment.end();
+			itr++)
+		{
+			//dprintf("insert entry %p\n", itr->address);
+			processor->Register(itr->ustAddress,
+				itr->size, itr->address,
+				itr->userSize, itr->userAddress);
+		}
 		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
 		index++;
