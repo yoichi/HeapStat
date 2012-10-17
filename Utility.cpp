@@ -38,6 +38,46 @@ ULONG32 GetNtGlobalFlag()
 	return ntGlobalFlag;
 }
 
+ULONG64 GetOSVersion()
+{
+	ULONG64 address;
+	ULONG32 osMajorVersion, osMinorVersion;
+
+	GetPebAddress(NULL, &address);
+	if (IsTarget64())
+	{
+		if (GetFieldValue(address, "ntdll!_PEB", "OSMajorVersion", osMajorVersion) != 0)
+		{
+			dprintf("read OSMajorVersion failed\n");
+			return 0;
+		}
+		if (GetFieldValue(address, "ntdll!_PEB", "OSMinorVersion", osMinorVersion) != 0)
+		{
+			dprintf("read OSMinorVersion failed\n");
+			return 0;
+		}
+	}
+	else
+	{
+		if (IsPtr64())
+		{
+			address -= PEB32_OFFSET;
+		}
+		ULONG cb;
+		if (!READMEMORY(address + 0xa4, osMajorVersion))
+		{
+			dprintf("read OSMajorVersion failed\n");
+			return 0;
+		}
+		if (!READMEMORY(address + 0xa8, osMinorVersion))
+		{
+			dprintf("read OSMinorVersion failed\n");
+			return 0;
+		}
+	}
+	return (((ULONG64)osMajorVersion << 32) | osMinorVersion);
+}
+
 ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress)
 {
 	if (IsTarget64())

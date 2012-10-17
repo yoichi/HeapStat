@@ -324,9 +324,11 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords, BOOL verbose)
 {
+	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
+	ULONG offset;
 	ULONG32 limit;
 	if (!READMEMORY(zone + 0xc, limit))
 	{
@@ -335,11 +337,14 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 	}
 
 	ULONG64 subsegment = zone + 0x10;
-	while (subsegment < limit)
+	ULONG subsegmentSize = GetOSVersion() >= OS_VERSION_WIN8 ? 0x28 : 0x20; // sizeof(_HEAP_SUBSEGMENT)
+	while (subsegment + subsegmentSize <= limit)
 	{
+		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
 		USHORT blockCount; // _HEAP_SUBSEGMENT::BlockCount
-		if (!READMEMORY(subsegment + 0x10, blockSize))
+		offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0x14 : 0x10;
+		if (!READMEMORY(subsegment + offset, blockSize))
 		{
 			dprintf("read _HEAP_SUBSEGMENT::BlockSize failed\n");
 			return FALSE;
@@ -349,7 +354,8 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			// rest are unused subsegments
 			break;
 		}
-		if (!READMEMORY(subsegment + 0x14, blockCount))
+		offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0x18 : 0x14;
+		if (!READMEMORY(subsegment + offset, blockCount))
 		{
 			dprintf("read _HEAP_SUBSEGMENT::BlockCount failed\n");
 			return FALSE;
@@ -360,9 +366,24 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
 			return FALSE;
 		}
-		ULONG64 address = userBlocks + 0x10;
+		ULONG64 address;
+		if (GetOSVersion() >= OS_VERSION_WIN8)
+		{
+			USHORT firstAllocationOffset; // _HEAP_USERDATA_HEADER::FirstAllocationOffset
+			if (!READMEMORY(userBlocks + 0x10, firstAllocationOffset))
+			{
+				dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
+				return FALSE;
+			}
+			address = userBlocks + firstAllocationOffset;
+		}
+		else
+		{
+			address = userBlocks + 0x10; // sizeof(_LFH_BLOCK_ZONE);
+		}
 		for (USHORT i = 0; i < blockCount; i++)
 		{
+			DPRINTF("entry %p\n", address);
 			const ULONG blockUnit = 8;
 			HeapEntry entry;
 			if (!READMEMORY(address, entry))
@@ -378,6 +399,8 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 				HeapRecord record;
 				if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
 				{
+					DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+						record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 					lfhRecords.push_back(record);
 				}
 				else
@@ -388,13 +411,14 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 
 			address += blockSize * blockUnit;
 		}
-		subsegment += 0x20; // sizeof(_HEAP_SUBSEGMENT)
+		subsegment += subsegmentSize;
 	}
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords, BOOL verbose)
 {
+	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
 	ULONG64 limit;
 	if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "Limit", limit) != 0)
@@ -403,9 +427,11 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 		return FALSE;
 	}
 
-	ULONG64 subsegment = zone + 0x20;
-	while (subsegment < limit)
+	ULONG64 subsegment = zone + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+	ULONG subsegmentSize = GetTypeSize("ntdll!_HEAP_SUBSEGMENT");
+	while (subsegment + subsegmentSize <= limit)
 	{
+		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
 		USHORT blockCount; // _HEAP_SUBSEGMENT::BlockCount
 		if (GetFieldValue(subsegment, "ntdll!_HEAP_SUBSEGMENT", "BlockSize", blockSize) != 0)
@@ -429,9 +455,24 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
 			return FALSE;
 		}
-		ULONG64 address = userBlocks + 0x20;
+		ULONG64 address;
+		if (GetOSVersion() >= OS_VERSION_WIN8)
+		{
+			USHORT firstAllocationOffset;
+			if (GetFieldValue(userBlocks, "ntdll!_HEAP_USERDATA_HEADER", "FirstAllocationOffset", firstAllocationOffset))
+			{
+				dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
+				return FALSE;
+			}
+			address = userBlocks + firstAllocationOffset;
+		}
+		else
+		{
+			address = userBlocks + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+		}
 		for (USHORT i = 0; i < blockCount; i++)
 		{
+			DPRINTF("entry %p\n", address);
 			const ULONG blockUnit = 16;
 			Heap64Entry entry;
 			if (!READMEMORY(address, entry))
@@ -447,6 +488,8 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 				HeapRecord record;
 				if (ParseHeapRecord64(address, entry, ntGlobalFlag, record))
 				{
+					DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+						record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 					lfhRecords.push_back(record);
 				}
 				else
@@ -457,16 +500,19 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 
 			address += blockSize * blockUnit;
 		}
-		subsegment += 0x30; // sizeof(_HEAP_SUBSEGMENT) + padding(4)
+		subsegment += subsegmentSize;
 	}
 	return TRUE;
 }
 
-static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords, BOOL verbose)
 {
+	DPRINTF("analyze LFH for HEAP %p\n", heapAddress);
 	ULONG cb;
+	ULONG offset;
 	UCHAR type; // _HEAP::FrontEndHeapType
-	if (!READMEMORY(heapAddress + 0xda, type))
+	offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0xd6: 0xda;
+	if (!READMEMORY(heapAddress + offset, type))
 	{
 		dprintf("read FrontEndHeapType failed\n");
 		return FALSE;
@@ -477,7 +523,8 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 	}
 
 	ULONG32 frontEndHeap;
-	if (!READMEMORY(heapAddress + 0xd4, frontEndHeap))
+	offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0xd0: 0xd4;
+	if (!READMEMORY(heapAddress + offset, frontEndHeap))
 	{
 		dprintf("read FrontEndHeap failed\n");
 		return FALSE;
@@ -487,7 +534,9 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 		return TRUE;
 	}
 
-	ULONG32 start = frontEndHeap + 0x18; // _LFH_HEAP::SubSegmentZones
+	DPRINTF("_LFH_HEAP %p\n", (ULONG64)frontEndHeap);
+	offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0x4 : 0x18;
+	ULONG32 start = frontEndHeap + offset; // _LFH_HEAP::SubSegmentZones
 	ULONG32 zone = start;
 	do
 	{
@@ -498,7 +547,7 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 			return FALSE;
 		}
 		zone = listEntry.Flink;
-		if (!AnalyzeLFHZone32(zone, ntGlobalFlag, lfhRecords))
+		if (!AnalyzeLFHZone32(zone, ntGlobalFlag, lfhRecords, verbose))
 		{
 			return FALSE;
 		}
@@ -506,8 +555,9 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 	return TRUE;
 }
 
-static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<HeapRecord> &lfhRecords, BOOL verbose)
 {
+	DPRINTF("analyze LFH for HEAP %p\n", heapAddress);
 	ULONG cb;
 	UCHAR type; // _HEAP::FrontEndHeapType
 	if (GetFieldValue(heapAddress, "ntdll!_HEAP", "FrontEndHeapType", type) != 0)
@@ -531,6 +581,7 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 		return TRUE;
 	}
 
+	DPRINTF("_LFH_HEAP %p\n", frontEndHeap);
 	ULONG offset;
 	if (GetFieldOffset("ntdll!_LFH_HEAP", "SubSegmentZones", &offset) != 0)
 	{
@@ -548,7 +599,7 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 			return FALSE;
 		}
 		zone = listEntry.Flink;
-		if (!AnalyzeLFHZone64(zone, ntGlobalFlag, lfhRecords))
+		if (!AnalyzeLFHZone64(zone, ntGlobalFlag, lfhRecords, verbose))
 		{
 			return FALSE;
 		}
@@ -581,7 +632,7 @@ bool predicate(const HeapRecord &record1, const HeapRecord &record2)
 static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	std::list<HeapRecord> lfhRecords;
-	AnalyzeLFH32(heapAddress, ntGlobalFlag, lfhRecords);
+	AnalyzeLFH32(heapAddress, ntGlobalFlag, lfhRecords, verbose);
 	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 	const ULONG blockUnit = 8;
@@ -602,11 +653,8 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			dprintf("read HEAP_SEGMENT at %p failed\n", heapAddress);
 			return FALSE;
 		}
-		if (verbose)
-		{
-			dprintf("Segment at %p to %p\n", heapAddress, (ULONG64)segment.LastValidEntry);
-			dprintf("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
-		}
+		DPRINTF("Segment at %p to %p\n", heapAddress, (ULONG64)segment.LastValidEntry);
+		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
 		std::list<HeapRecord> lfhRecordsInSegment;
@@ -619,6 +667,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 				lfhRecordsInSegment.push_back(*itr);
 			}
 		}
+		DPRINTF("%d LFH records in segment %p\n", (int)lfhRecordsInSegment.size(), heapAddress);
 
 		ULONG64 address = segment.FirstEntry;
 		while (address < segment.LastValidEntry)
@@ -638,30 +687,21 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			// skip the last entry in the segment
 			if (address + entry.Size * blockUnit >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
 			{
-				if (verbose)
-				{
-					dprintf("uncommitted bytes follows\n");
-				}
+				DPRINTF("uncommitted bytes follows\n");
 				break;
 			}
 
 			if (!(ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) || entry.ExtendedBlockSignature != 0x01)
 			{
-				if (verbose)
-				{
-					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-				}
+				DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
 				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
 				if (entry.Flags == busy)
 				{
 					HeapRecord record;
 					if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
 					{
-						if (verbose)
-						{
-							dprintf("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
-								record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-						}
+						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						Register(record, lfhRecordsInSegment, processor);
 					}
 				}
@@ -687,7 +727,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbose, IProcessor *processor)
 {
 	std::list<HeapRecord> lfhRecords;
-	AnalyzeLFH64(heapAddress, ntGlobalFlag, lfhRecords);
+	AnalyzeLFH64(heapAddress, ntGlobalFlag, lfhRecords, verbose);
 	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 	const ULONG blockUnit = 16;
@@ -708,11 +748,8 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			dprintf("read HEAP_SEGMENT at %p failed\n", heapAddress);
 			return FALSE;
 		}
-		if (verbose)
-		{
-			dprintf("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
-			dprintf("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
-		}
+		DPRINTF("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
+		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
 		std::list<HeapRecord> lfhRecordsInSegment;
@@ -725,6 +762,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 				lfhRecordsInSegment.push_back(*itr);
 			}
 		}
+		DPRINTF("%d LFH records in segment %p\n", (int)lfhRecordsInSegment.size(), heapAddress);
 
 		ULONG64 address = segment.FirstEntry;
 		while (address < segment.LastValidEntry)
@@ -744,30 +782,21 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			// skip the last entry in the segment
 			if (address + entry.Size * blockUnit >= segment.LastValidEntry - segment.NumberOfUnCommittedPages * PAGE_SIZE)
 			{
-				if (verbose)
-				{
-					dprintf("uncommitted bytes follows\n");
-				}
+				DPRINTF("uncommitted bytes follows\n");
 				break;
 			}
 
 			if (!(ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) || entry.ExtendedBlockSignature != 0x01)
 			{
-				if (verbose)
-				{
-					dprintf("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-				}
+				DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
 				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
 				if (entry.Flags == busy)
 				{
 					HeapRecord record;
 					if (ParseHeapRecord64(address, entry, ntGlobalFlag, record))
 					{
-						if (verbose)
-						{
-							dprintf("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
-								record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-						}
+						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						Register(record, lfhRecordsInSegment, processor);
 					}
 				}
@@ -789,17 +818,11 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	ntGlobalFlag = GetNtGlobalFlag();
 	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
-		if (verbose)
-		{
-			dprintf("hpa enabled\n");
-		}
+		DPRINTF("hpa enabled\n");
 	}
 	else if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 	{
-		if (verbose)
-		{
-			dprintf("ust enabled\n");
-		}
+		DPRINTF("ust enabled\n");
 	}
 	else
 	{
@@ -808,10 +831,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 
 	for (ULONG heapIndex = 0; (heapAddress = GetHeapAddress(heapIndex)) != 0; heapIndex++)
 	{
-		if (verbose)
-		{
-			dprintf("heap[%d] at %p\n", heapIndex, heapAddress);
-		}
+		DPRINTF("heap[%d] at %p\n", heapIndex, heapAddress);
 		processor->StartHeap(heapAddress);
 		if (IsTarget64())
 		{

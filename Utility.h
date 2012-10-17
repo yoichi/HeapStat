@@ -12,6 +12,8 @@
 
 #define READMEMORY(address, var) (ReadMemory(address, &var, sizeof(var), &cb) && cb == sizeof(var))
 
+#define DPRINTF(...) do { if (verbose) { dprintf(__VA_ARGS__); } } while (0)
+
 /**
 *	@brief is target process 64 bit or not (32 bit)
 *	@retval true 64 bit process
@@ -23,6 +25,15 @@ bool IsTarget64();
 *	@brief get NtGlobalFlag from PEB
 */
 ULONG32 GetNtGlobalFlag();
+
+#define OS_VERSION_WIN7 (((ULONG64)6 << 32) | 1)
+#define OS_VERSION_WIN8 (((ULONG64)6 << 32) | 2)
+
+/**
+*	@brief get OSMajorVersion and OSMinorVersion
+*	@return ((OSMajorVersion << 32) | OSMinorVersion)
+*/
+ULONG64 GetOSVersion();
 
 /**
 *	@brief get pointer to stack trace array
