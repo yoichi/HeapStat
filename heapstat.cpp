@@ -366,50 +366,53 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
 			return FALSE;
 		}
-		ULONG64 address;
-		if (GetOSVersion() >= OS_VERSION_WIN8)
+		if (userBlocks != 0)
 		{
-			USHORT firstAllocationOffset; // _HEAP_USERDATA_HEADER::FirstAllocationOffset
-			if (!READMEMORY(userBlocks + 0x10, firstAllocationOffset))
+			ULONG64 address;
+			if (GetOSVersion() >= OS_VERSION_WIN8)
 			{
-				dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
-				return FALSE;
-			}
-			address = userBlocks + firstAllocationOffset;
-		}
-		else
-		{
-			address = userBlocks + 0x10; // sizeof(_LFH_BLOCK_ZONE);
-		}
-		for (USHORT i = 0; i < blockCount; i++)
-		{
-			DPRINTF("entry %p\n", address);
-			const ULONG blockUnit = 8;
-			HeapEntry entry;
-			if (!READMEMORY(address, entry))
-			{
-				dprintf("read LFH HeapEntry at %p failed\n", address);
-				return FALSE;
-			}
-			entry.Size = blockSize;
-
-			UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
-			if (entry.ExtendedBlockSignature == busy)
-			{
-				HeapRecord record;
-				if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
+				USHORT firstAllocationOffset; // _HEAP_USERDATA_HEADER::FirstAllocationOffset
+				if (!READMEMORY(userBlocks + 0x10, firstAllocationOffset))
 				{
-					DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
-						record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-					lfhRecords.push_back(record);
-				}
-				else
-				{
+					dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
 					return FALSE;
 				}
+				address = userBlocks + firstAllocationOffset;
 			}
+			else
+			{
+				address = userBlocks + 0x10; // sizeof(_LFH_BLOCK_ZONE);
+			}
+			for (USHORT i = 0; i < blockCount; i++)
+			{
+				DPRINTF("entry %p\n", address);
+				const ULONG blockUnit = 8;
+				HeapEntry entry;
+				if (!READMEMORY(address, entry))
+				{
+					dprintf("read LFH HeapEntry at %p failed\n", address);
+					return FALSE;
+				}
+				entry.Size = blockSize;
 
-			address += blockSize * blockUnit;
+				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
+				if (entry.ExtendedBlockSignature == busy)
+				{
+					HeapRecord record;
+					if (ParseHeapRecord32(address, entry, ntGlobalFlag, record))
+					{
+						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
+						lfhRecords.push_back(record);
+					}
+					else
+					{
+						return FALSE;
+					}
+				}
+
+				address += blockSize * blockUnit;
+			}
 		}
 		subsegment += subsegmentSize;
 	}
@@ -455,50 +458,53 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 			dprintf("read _HEAP_SUBSEGMENT::UserBlocks failed\n");
 			return FALSE;
 		}
-		ULONG64 address;
-		if (GetOSVersion() >= OS_VERSION_WIN8)
+		if (userBlocks != 0)
 		{
-			USHORT firstAllocationOffset;
-			if (GetFieldValue(userBlocks, "ntdll!_HEAP_USERDATA_HEADER", "FirstAllocationOffset", firstAllocationOffset))
+			ULONG64 address;
+			if (GetOSVersion() >= OS_VERSION_WIN8)
 			{
-				dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
-				return FALSE;
-			}
-			address = userBlocks + firstAllocationOffset;
-		}
-		else
-		{
-			address = userBlocks + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
-		}
-		for (USHORT i = 0; i < blockCount; i++)
-		{
-			DPRINTF("entry %p\n", address);
-			const ULONG blockUnit = 16;
-			Heap64Entry entry;
-			if (!READMEMORY(address, entry))
-			{
-				dprintf("read LFH HeapEntry at %p failed\n", address);
-				return FALSE;
-			}
-			entry.Size = blockSize;
-
-			UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
-			if (entry.ExtendedBlockSignature == busy)
-			{
-				HeapRecord record;
-				if (ParseHeapRecord64(address, entry, ntGlobalFlag, record))
+				USHORT firstAllocationOffset;
+				if (GetFieldValue(userBlocks, "ntdll!_HEAP_USERDATA_HEADER", "FirstAllocationOffset", firstAllocationOffset))
 				{
-					DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
-						record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-					lfhRecords.push_back(record);
-				}
-				else
-				{
+					dprintf("read _HEAP_USERDATA_HEADER::FirstAllocationOffset failed\n");
 					return FALSE;
 				}
+				address = userBlocks + firstAllocationOffset;
 			}
+			else
+			{
+				address = userBlocks + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+			}
+			for (USHORT i = 0; i < blockCount; i++)
+			{
+				DPRINTF("entry %p\n", address);
+				const ULONG blockUnit = 16;
+				Heap64Entry entry;
+				if (!READMEMORY(address, entry))
+				{
+					dprintf("read LFH HeapEntry at %p failed\n", address);
+					return FALSE;
+				}
+				entry.Size = blockSize;
 
-			address += blockSize * blockUnit;
+				UCHAR busy = (ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
+				if (entry.ExtendedBlockSignature == busy)
+				{
+					HeapRecord record;
+					if (ParseHeapRecord64(address, entry, ntGlobalFlag, record))
+					{
+						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
+						lfhRecords.push_back(record);
+					}
+					else
+					{
+						return FALSE;
+					}
+				}
+
+				address += blockSize * blockUnit;
+			}
 		}
 		subsegment += subsegmentSize;
 	}
