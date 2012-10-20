@@ -329,16 +329,16 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
 	ULONG offset;
-	ULONG32 limit;
-	if (!READMEMORY(zone + 0xc, limit))
+	ULONG32 freePointer;
+	if (!READMEMORY(zone + 0x8, freePointer))
 	{
-		dprintf("read _LFH_BLOCK_ZONE::Limit failed\n");
+		dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
 		return FALSE;
 	}
 
 	ULONG64 subsegment = zone + 0x10;
 	ULONG subsegmentSize = GetOSVersion() >= OS_VERSION_WIN8 ? 0x28 : 0x20; // sizeof(_HEAP_SUBSEGMENT)
-	while (subsegment + subsegmentSize <= limit)
+	while (subsegment + subsegmentSize <= freePointer)
 	{
 		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
@@ -423,16 +423,16 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, ULONG32 ntGlobalFlag, std::list<HeapR
 {
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
-	ULONG64 limit;
-	if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "Limit", limit) != 0)
+	ULONG64 freePointer;
+	if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "FreePointer", freePointer) != 0)
 	{
-		dprintf("read _LFH_BLOCK_ZONE::Limit failed\n");
+		dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
 		return FALSE;
 	}
 
 	ULONG64 subsegment = zone + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
 	ULONG subsegmentSize = GetTypeSize("ntdll!_HEAP_SUBSEGMENT");
-	while (subsegment + subsegmentSize <= limit)
+	while (subsegment + subsegmentSize <= freePointer)
 	{
 		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
@@ -544,7 +544,7 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 	offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0x4 : 0x18;
 	ULONG32 start = frontEndHeap + offset; // _LFH_HEAP::SubSegmentZones
 	ULONG32 zone = start;
-	do
+	while (true)
 	{
 		LIST_ENTRY32 listEntry;
 		if (!READMEMORY(zone, listEntry))
@@ -553,11 +553,15 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 			return FALSE;
 		}
 		zone = listEntry.Flink;
+		if (zone == start)
+		{
+			break;
+		}
 		if (!AnalyzeLFHZone32(zone, ntGlobalFlag, lfhRecords, verbose))
 		{
 			return FALSE;
 		}
-	} while (zone != start);
+	}
 	return TRUE;
 }
 
@@ -596,7 +600,7 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 	}
 	ULONG64 start = frontEndHeap + offset; // _LFH_HEAP::SubSegmentZones
 	ULONG64 zone = start;
-	do
+	while (true)
 	{
 		LIST_ENTRY64 listEntry;
 		if (!READMEMORY(zone, listEntry))
@@ -605,11 +609,15 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 			return FALSE;
 		}
 		zone = listEntry.Flink;
+		if (zone == start)
+		{
+			break;
+		}
 		if (!AnalyzeLFHZone64(zone, ntGlobalFlag, lfhRecords, verbose))
 		{
 			return FALSE;
 		}
-	} while (zone != start);
+	}
 	return TRUE;
 }
 
