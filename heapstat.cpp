@@ -621,6 +621,155 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, std::list<He
 	return TRUE;
 }
 
+static BOOL AnalyzeVirtualAllocd32(ULONG64 heapAddress, const HeapEntry &encoding, ULONG32 ntGlobalFlag, std::list<HeapRecord> &records, BOOL verbose)
+{
+	DPRINTF("analyze VirtualAllocdBlocks for HEAP %p\n", heapAddress);
+	ULONG cb;
+	ULONG offset = GetOSVersion() >= OS_VERSION_WIN8 ? 0x9c : 0xa0;
+	LIST_ENTRY32 listEntry;
+	if (!READMEMORY(heapAddress + offset, listEntry))
+	{
+		dprintf("read VirtualAllocdBlocks failed\n");
+		return FALSE;
+	}
+	while (listEntry.Flink != heapAddress + offset)
+	{
+		HeapRecord record;
+		record.address = listEntry.Flink;
+
+		ULONG size;
+		if (!READMEMORY(record.address + 0x10, size))
+		{
+			dprintf("read size at %p failed\n", record.address + 0x10);
+			return FALSE;
+		}
+		record.size = size;
+
+		HeapEntry entry;
+		if (!READMEMORY(record.address + 0x18, entry))
+		{
+			dprintf("read HeapEntry at %p failed\n", record.address + 0x18);
+			return FALSE;
+		}
+		if (!DecodeHeapEntry(&entry, &encoding))
+		{
+			dprintf("DecodeHeapEntry failed\n");
+			return FALSE;
+		}
+		USHORT extra = *(USHORT*)&entry;
+		if (extra >= record.size)
+		{
+			dprintf("too large extra 0x%02x (size=%p)\n", extra, record.size);
+			return FALSE;
+		}
+
+		if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
+		{
+			ULONG ustAddress;
+			if (!READMEMORY(record.address + 0x20, ustAddress))
+			{
+				dprintf("read ustAddress at %p failed\n", record.address + 0x20);
+				return FALSE;
+			}
+			record.ustAddress = ustAddress;
+			record.userAddress = record.address + 0x30;
+			record.userSize = record.size - extra;
+		}
+		else
+		{
+			record.ustAddress = 0;
+			record.userAddress = record.address + 0x20;
+			record.userSize = record.size - extra;
+		}
+
+		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+			record.ustAddress, record.userAddress, record.userSize, record.size - record.userSize);
+		records.push_back(record);
+
+		if (!READMEMORY(listEntry.Flink, listEntry))
+		{
+			dprintf("read ListEntry failed\n");
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeVirtualAllocd64(ULONG64 heapAddress, const Heap64Entry &encoding, ULONG32 ntGlobalFlag, std::list<HeapRecord> &records, BOOL verbose)
+{
+	DPRINTF("analyze VirtualAllocdBlocks for HEAP %p\n", heapAddress);
+	ULONG cb;
+	LIST_ENTRY64 listEntry;
+	if (GetFieldValue(heapAddress, "ntdll!_HEAP", "VirtualAllocdBlocks", listEntry) != 0)
+	{
+		dprintf("read VirtualAllocdBlocks failed\n");
+		return FALSE;
+	}
+	ULONG offset;
+	GetFieldOffset("ntdll!_HEAP", "VirtualAllocdBlocks", &offset);
+	while (listEntry.Flink != heapAddress + offset)
+	{
+		HeapRecord record;
+		record.address = listEntry.Flink;
+
+		ULONG64 size;
+		if (!READMEMORY(record.address + 0x20, size))
+		{
+			dprintf("read size at %p failed\n", record.address + 0x20);
+			return FALSE;
+		}
+		record.size = size;
+
+		Heap64Entry entry;
+		if (!READMEMORY(record.address + 0x30, entry))
+		{
+			dprintf("read Heap64Entry at %p failed\n", record.address + 0x30);
+			return FALSE;
+		}
+		if (!DecodeHeap64Entry(&entry, &encoding))
+		{
+			dprintf("DecodeHeap64Entry failed\n");
+			return FALSE;
+		}
+		USHORT extra = *(USHORT*)((UCHAR*)&entry + 8);
+		if (extra >= record.size)
+		{
+			dprintf("too large extra 0x%02x (size=%p)\n", extra, record.size);
+			return FALSE;
+		}
+
+		if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
+		{
+			ULONG64 ustAddress;
+			if (!READMEMORY(record.address + 0x40, ustAddress))
+			{
+				dprintf("read ustAddress at %p failed\n", record.address + 0x40);
+				return FALSE;
+			}
+			record.ustAddress = ustAddress;
+			record.userAddress = record.address + 0x60;
+			record.userSize = record.size - extra;
+		}
+		else
+		{
+			record.ustAddress = 0;
+			record.userAddress = record.address + 0x40;
+			record.userSize = record.size - extra;
+		}
+
+		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+			record.ustAddress, record.userAddress, record.userSize, record.size - record.userSize);
+		records.push_back(record);
+
+		if (GetFieldValue(listEntry.Flink, "ntdll!_LIST_ENTRY", "Flink", listEntry) != 0)
+		{
+			dprintf("read ListEntry at %p failed\n", listEntry.Flink);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 static void Register(
 		const HeapRecord &record,
 		std::list<HeapRecord> &lfhRecords,
@@ -649,6 +798,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	AnalyzeLFH32(heapAddress, ntGlobalFlag, lfhRecords, verbose);
 	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
+
 	const ULONG blockUnit = 8;
 	ULONG cb;
 	HeapEntry encoding;
@@ -657,6 +807,11 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		dprintf("read Encoding failed\n");
 		return FALSE;
 	}
+
+	std::list<HeapRecord> vallocRecords;
+	AnalyzeVirtualAllocd32(heapAddress, encoding, ntGlobalFlag, vallocRecords, verbose);
+	vallocRecords.sort(predicate);
+	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
@@ -739,6 +894,14 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		heapAddress = segment.SegmentListEntry.Flink - 0x10;
 		index++;
 	}
+	for (std::list<HeapRecord>::iterator itr = vallocRecords.begin();
+		itr != vallocRecords.end();
+		itr++)
+	{
+		processor->Register(itr->ustAddress,
+			itr->size, itr->address,
+			itr->userSize, itr->userAddress);
+	}
 	return TRUE;
 }
 
@@ -748,6 +911,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 	AnalyzeLFH64(heapAddress, ntGlobalFlag, lfhRecords, verbose);
 	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
+
 	const ULONG blockUnit = 16;
 	ULONG cb;
 	Heap64Entry encoding;
@@ -756,6 +920,11 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		dprintf("read Encoding failed\n");
 		return FALSE;
 	}
+
+	std::list<HeapRecord> vallocRecords;
+	AnalyzeVirtualAllocd64(heapAddress, encoding, ntGlobalFlag, vallocRecords, verbose);
+	vallocRecords.sort(predicate);
+	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
@@ -793,7 +962,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 			}
 			if (!DecodeHeap64Entry(&entry, &encoding))
 			{
-				dprintf("DecodeHeapEntry failed at %p\n", address);
+				dprintf("DecodeHeap64Entry failed at %p\n", address);
 				return FALSE;
 			}
 
@@ -837,6 +1006,14 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, ULONG32 ntGlobalFlag, BOOL verbos
 		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
 		index++;
+	}
+	for (std::list<HeapRecord>::iterator itr = vallocRecords.begin();
+		itr != vallocRecords.end();
+		itr++)
+	{
+		processor->Register(itr->ustAddress,
+			itr->size, itr->address,
+			itr->userSize, itr->userAddress);
 	}
 	return TRUE;
 }
