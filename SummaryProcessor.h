@@ -1,7 +1,9 @@
 #pragma once
 
 #include <map>
+#include <vector>
 #include "IProcessor.h"
+#include "Utility.h"
 
 class SummaryProcessor : public IProcessor
 {
@@ -20,6 +22,11 @@ private:
 	};
 
 	std::map<ULONG64, UstRecord> records_;
+
+	/**
+	*	@brief get caller module base address
+	*/
+	ULONG64 GetCallerModule(ULONG64 ustAddress, std::vector<ModuleInfo> &loadedModules);
 
 	/**
 	*	@brief print stack trace

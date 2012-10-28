@@ -2,6 +2,7 @@
 #error "this file is C++ header"
 #endif
 
+#pragma once
 #include <vector>
 
 #define NT_GLOBAL_FLAG_UST 0x00001000 // user mode stack trace database enabled
