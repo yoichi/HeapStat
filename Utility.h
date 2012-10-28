@@ -12,8 +12,6 @@
 
 #define READMEMORY(address, var) (ReadMemory(address, &var, sizeof(var), &cb) && cb == sizeof(var))
 
-#define DPRINTF(...) do { if (verbose) { dprintf(__VA_ARGS__); } } while (0)
-
 /**
 *	@brief is target process 64 bit or not (32 bit)
 *	@retval true 64 bit process
