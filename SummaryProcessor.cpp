@@ -145,11 +145,10 @@ ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<Module
 		ULONG64 displacement;
 		GetSymbol(*itr, buffer, &displacement);
 		CHAR *ch = strchr(buffer, '!');
-		if (ch == NULL)
+		if (ch != NULL)
 		{
-			continue;
+			*ch = '\0';
 		}
-		*ch = '\0';
 		const CHAR *ntdll = "ntdll";
 		if (strcmp(buffer, ntdll) == 0)
 		{
