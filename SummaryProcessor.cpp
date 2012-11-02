@@ -160,6 +160,11 @@ ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<Module
 		{
 			continue;
 		}
+		const CHAR *verifier = "verifier";
+		if (strcmp(buffer, verifier) == 0)
+		{
+			continue;
+		}
 		for (std::vector<ModuleInfo>::iterator itr_ = loadedModules.begin(); itr_ != loadedModules.end(); itr_++)
 		{
 			if (itr_->DllBase <= *itr && *itr < itr_->DllBase + itr_->SizeOfImage)

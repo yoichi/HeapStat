@@ -81,9 +81,75 @@ typedef struct {
 	ULONG32 ntGlobalFlag;
 	ULONG64 osVersion;
 	BOOL verbose;
+	bool isTarget64;
 } CommonParams;
 
 #define DPRINTF(...) do { if (params.verbose) { dprintf(__VA_ARGS__); } } while (0)
+
+/**
+*	@brief walk _RTL_BALANCED_LINKS nodes
+*	@param handler function to be called on each nodes
+*	@retval TRUE handler returns TRUE on all nodes and complete walking
+*	@retval FALSE handler returns FALSE on some node and quit walking
+*/
+static BOOL WalkBalancedLinks(ULONG64 address,
+							  const CommonParams &params,
+							   BOOL (*handler)(ULONG64 address, const CommonParams &params, void *arg),
+							   void *arg)
+{
+	ULONG cb;
+
+	if (!handler(address, params, arg))
+	{
+		return FALSE;
+	}
+
+	struct
+	{
+		ULONG64 Parent;
+		ULONG64 LeftChild;
+		ULONG64 RightChild;
+	} links;
+	if (params.isTarget64)
+	{
+		if (!READMEMORY(address, links))
+		{
+			return FALSE;
+		}
+	}
+	else
+	{
+		struct
+		{
+			ULONG32 Parent;
+			ULONG32 LeftChild;
+			ULONG32 RightChild;
+		} tmp;
+		if (!READMEMORY(address, tmp))
+		{
+			return FALSE;
+		}
+		links.Parent = tmp.Parent;
+		links.LeftChild = tmp.LeftChild;
+		links.RightChild = tmp.RightChild;
+	}
+
+	if (links.LeftChild != 0)
+	{
+		if (!WalkBalancedLinks(links.LeftChild, params, handler, arg))
+		{
+			return FALSE;
+		}
+	}
+	if (links.RightChild != 0)
+	{
+		if (!WalkBalancedLinks(links.RightChild, params, handler, arg))
+		{
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
 
 static BOOL DecodeHeapEntry(HeapEntry *entry, const HeapEntry *encoding)
 {
@@ -190,61 +256,35 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 {
 	const ULONG blockUnit = 8;
 	ULONG cb;
-	if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
+	if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 	{
-		ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x18 : 0;
 		ULONG32 ustAddress;
-		if (!READMEMORY(address + sizeof(entry) + offset, ustAddress))
+		if (!READMEMORY(address + sizeof(entry), ustAddress))
 		{
-			dprintf("read ustAddress at %p failed", address + sizeof(entry) + offset);
+			dprintf("read ustAddress at %p failed", address + sizeof(entry));
 			return FALSE;
 		}
 		else
 		{
 			record.ustAddress = ustAddress;
-			if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+			USHORT extra;
+			if (READMEMORY(address + sizeof(entry) + 0xc, extra))
 			{
-				USHORT userSize_;
-				if (READMEMORY(address + sizeof(entry) + 0x8, userSize_))
+				if (entry.Size * blockUnit >= extra)
 				{
-					if (entry.Size * blockUnit > userSize_)
-					{
-						record.userSize = userSize_;
-						record.userAddress = address + sizeof(entry) + 0x20;
-					}
-					else
-					{
-						dprintf("invalid userSize 0x%04x\n", userSize_);
-						return FALSE;
-					}
+					record.userSize = entry.Size * blockUnit - extra;
+					record.userAddress = address + sizeof(entry) + 0x10;
 				}
 				else
 				{
-					dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x8);
+					dprintf("invalid extra 0x%04x\n", extra);
 					return FALSE;
 				}
 			}
-			else // NT_GLOBAL_FLAG_UST
+			else
 			{
-				USHORT extra;
-				if (READMEMORY(address + sizeof(entry) + 0xc, extra))
-				{
-					if (entry.Size * blockUnit >= extra)
-					{
-						record.userSize = entry.Size * blockUnit - extra;
-						record.userAddress = address + sizeof(entry) + 0x10;
-					}
-					else
-					{
-						dprintf("invalid extra 0x%04x\n", extra);
-						return FALSE;
-					}
-				}
-				else
-				{
-					dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
-					return FALSE;
-				}
+				dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
+				return FALSE;
 			}
 		}
 	}
@@ -263,61 +303,35 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 {
 	const ULONG blockUnit = 16;
 	ULONG cb;
-	if (ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA))
+	if (ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 	{
-		ULONG64 offset = (ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x30 : 0;
 		ULONG64 ustAddress;
-		if (!READMEMORY(address + sizeof(entry) + offset, ustAddress))
+		if (!READMEMORY(address + sizeof(entry), ustAddress))
 		{
-			dprintf("read ustAddress at %p failed", address + sizeof(entry) + offset);
+			dprintf("read ustAddress at %p failed", address + sizeof(entry));
 			return FALSE;
 		}
 		else
 		{
 			record.ustAddress = ustAddress;
-			if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
+			USHORT extra;
+			if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
 			{
-				USHORT userSize_;
-				if (READMEMORY(address + sizeof(entry) + 0x10, userSize_))
+				if (entry.Size * blockUnit >= extra)
 				{
-					if (entry.Size * blockUnit > userSize_)
-					{
-						record.userSize = userSize_;
-						record.userAddress = address + sizeof(entry) + 0x40;
-					}
-					else
-					{
-						dprintf("invalid userSize 0x%04x\n", userSize_);
-						return FALSE;
-					}
+					record.userSize = entry.Size * blockUnit - extra;
+					record.userAddress = address + sizeof(entry) + 0x20;
 				}
 				else
 				{
-					dprintf("READMEMORY for userSize failed at %p\n", address + sizeof(entry) + 0x10);
+					dprintf("invalid extra 0x%04x\n", extra);
 					return FALSE;
 				}
 			}
-			else // NT_GLOBAL_FLAG_UST
+			else
 			{
-				USHORT extra;
-				if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
-				{
-					if (entry.Size * blockUnit >= extra)
-					{
-						record.userSize = entry.Size * blockUnit - extra;
-						record.userAddress = address + sizeof(entry) + 0x20;
-					}
-					else
-					{
-						dprintf("invalid extra 0x%04x\n", extra);
-						return FALSE;
-					}
-				}
-				else
-				{
-					dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
-					return FALSE;
-				}
+				dprintf("READMEMORY for extra failed at %p\n", address + sizeof(entry) + 0xc);
+				return FALSE;
 			}
 		}
 	}
@@ -795,7 +809,7 @@ static void Register(
 		record.size, record.address, record.userSize, record.userAddress);
 }
 
-bool predicate(const HeapRecord &record1, const HeapRecord &record2)
+static bool predicate(const HeapRecord &record1, const HeapRecord &record2)
 {
 	return record1.address < record2.address;
 }
@@ -869,13 +883,13 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 
 			DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-			if ((params.ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) && entry.ExtendedBlockSignature == 0x03)
+			if ((params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) && entry.ExtendedBlockSignature == 0x03)
 			{
 				break;
 			}
 			else
 			{
-				UCHAR busy = (params.ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
+				UCHAR busy = 0x01;
 				if (entry.Flags == busy)
 				{
 					HeapRecord record;
@@ -982,13 +996,13 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 
 			DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-			if ((params.ntGlobalFlag & (NT_GLOBAL_FLAG_UST | NT_GLOBAL_FLAG_HPA)) && entry.ExtendedBlockSignature == 0x03)
+			if ((params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) && entry.ExtendedBlockSignature == 0x03)
 			{
 				break;
 			}
 			else
 			{
-				UCHAR busy = (params.ntGlobalFlag & NT_GLOBAL_FLAG_HPA) ? 0x03 : 0x01;
+				UCHAR busy = 0x01;
 				if (entry.Flags == busy)
 				{
 					HeapRecord record;
@@ -1026,6 +1040,253 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 	return TRUE;
 }
 
+static BOOL AnalyzeDphHeapBlock32(ULONG64 address, const CommonParams &params, void *arg)
+{
+	ULONG cb;
+	std::list<HeapRecord> *records = static_cast<std::list<HeapRecord> *>(arg);
+	DPRINTF("_DPH_HEAP_BLOCK %p\n", address);
+	ULONG32 pUserAllocation;
+	// _DPH_HEAP_BLOCK::pUserAllocation
+	if (!READMEMORY(address + 0x10, pUserAllocation))
+	{
+		dprintf("read pUserAllocation failed\n");
+		return FALSE;
+	}
+	
+	ULONG32 startMagic;
+	if (READMEMORY(pUserAllocation - 0x20, startMagic) &&
+		startMagic == 0xABCDBBBB /* allocated */)
+	{
+		ULONG32 pVirtualBlock, stackTrace;
+		ULONG32 nVirtualBlockSize, nUserRequestedSize;
+
+		if (!READMEMORY(address + 0x14, pVirtualBlock))
+		{
+			dprintf("read pVirtualBlock failed\n");
+			return FALSE;
+		}
+
+		if (!READMEMORY(address + 0x18, nVirtualBlockSize))
+		{
+			dprintf("read nVirtualBlockSize failed\n");
+			return FALSE;
+		}
+
+		if (!READMEMORY(address + 0x20, nUserRequestedSize))
+		{
+			dprintf("read nUserRequestedSize failed\n");
+			return FALSE;
+		}
+
+		if (!READMEMORY(address + 0x30, stackTrace))
+		{
+			dprintf("read StackTrace failed\n");
+			return FALSE;
+		}
+
+		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+			(ULONG64)stackTrace, (ULONG64)pUserAllocation, (ULONG64)nUserRequestedSize, (ULONG64)(nVirtualBlockSize - nUserRequestedSize));
+		HeapRecord record;
+		record.ustAddress = stackTrace;
+		record.size = nVirtualBlockSize;
+		record.address = pVirtualBlock;
+		record.userSize = nUserRequestedSize;
+		record.userAddress = pUserAllocation;
+		records->push_back(record);
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeDphHeap32(ULONG64 heapList, IProcessor *processor, const CommonParams &params)
+{
+	std::vector<ULONG64> heapRoots;
+	ULONG cb;
+	LIST_ENTRY32 listEntry;
+	if (!READMEMORY(heapList, listEntry))
+	{
+		dprintf("read LIST_ENTRY32 at %p failed\n", heapList);
+		return FALSE;
+	}
+	while (listEntry.Flink != heapList)
+	{
+		ULONG64 heapRoot = listEntry.Flink - 0xa4 /* offset of _DPH_HEAP_ROOT::NextHeap */;
+		DPRINTF("push heapRoot %p\n", heapRoot);
+		heapRoots.push_back(heapRoot);
+		if (!READMEMORY(listEntry.Flink, listEntry))
+		{
+			dprintf("read LIST_ENTRY32 at %p failed\n", listEntry.Flink);
+			return FALSE;
+		}
+	}
+
+	for (std::vector<ULONG64>::iterator itr = heapRoots.begin(); itr != heapRoots.end(); itr++)
+	{
+		ULONG cb;
+		// _DPH_HEAP_ROOT::NormalHeap
+		ULONG32 normalHeap;
+		if (!READMEMORY(*itr + 0xb4, normalHeap))
+		{
+			dprintf("read NormalHeap at %p failed\n", *itr + 0xb4);
+			return FALSE;
+		}
+
+		DPRINTF("heap at %p, _DPH_HEAP_ROOT %p\n", (ULONG64)normalHeap, *itr);
+		processor->StartHeap(normalHeap);
+		std::list<HeapRecord> records;
+
+		// _DPH_HEAP_ROOT::BusyNodesTable
+		if (!WalkBalancedLinks(*itr + 0x20, params, AnalyzeDphHeapBlock32, &records))
+		{
+			dprintf("WalkBalancedLinks failed\n");
+			return FALSE;
+		}
+
+		records.sort(predicate);
+		for (std::list<HeapRecord>::iterator itr_ = records.begin();
+			itr_ != records.end();
+			itr_++)
+		{
+			processor->Register(itr_->ustAddress,
+				itr_->size, itr_->address,
+				itr_->userSize, itr_->userAddress);
+		}
+		processor->FinishHeap(normalHeap);
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeDphHeapBlock64(ULONG64 address, const CommonParams &params, void *arg)
+{
+	ULONG cb;
+	const char *type = "ntdll!_DPH_HEAP_BLOCK";
+	std::list<HeapRecord> *records = static_cast<std::list<HeapRecord> *>(arg);
+	DPRINTF("_DPH_HEAP_BLOCK %p\n", address);
+	ULONG64 pUserAllocation;
+	// _DPH_HEAP_BLOCK::pUserAllocation
+	if (GetFieldValue(address, type, "pUserAllocation", pUserAllocation) != 0)
+	{
+		dprintf("read pUserAllocation failed\n");
+		return FALSE;
+	}
+	
+	ULONG32 startMagic;
+	if (READMEMORY(pUserAllocation - 0x40, startMagic) &&
+		startMagic == 0xABCDBBBB /* allocated */)
+	{
+		ULONG64 pVirtualBlock, stackTrace;
+		ULONG64 nVirtualBlockSize, nUserRequestedSize;
+
+		if (GetFieldValue(address, type, "pVirtualBlock", pVirtualBlock) != 0)
+		{
+			dprintf("read pVirtualBlock failed\n");
+			return FALSE;
+		}
+
+		if (GetFieldValue(address, type, "nVirtualBlockSize", nVirtualBlockSize) != 0)
+		{
+			dprintf("read nVirtualBlockSize failed\n");
+			return FALSE;
+		}
+
+		if (GetFieldValue(address, type, "nUserRequestedSize", nUserRequestedSize) != 0)
+		{
+			dprintf("read nUserRequestedSize failed\n");
+			return FALSE;
+		}
+
+		if (GetFieldValue(address, type, "StackTrace", stackTrace))
+		{
+			dprintf("read StackTrace failed\n");
+			return FALSE;
+		}
+
+		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
+			stackTrace, pUserAllocation, nUserRequestedSize, nVirtualBlockSize - nUserRequestedSize);
+		HeapRecord record;
+		record.ustAddress = stackTrace;
+		record.size = nVirtualBlockSize;
+		record.address = pVirtualBlock;
+		record.userSize = nUserRequestedSize;
+		record.userAddress = pUserAllocation;
+		records->push_back(record);
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeDphHeap64(ULONG64 heapList, IProcessor *processor, const CommonParams &params)
+{
+	std::vector<ULONG64> heapRoots;
+	ULONG cb;
+	LIST_ENTRY64 listEntry;
+	if (!READMEMORY(heapList, listEntry))
+	{
+		dprintf("read LIST_ENTRY64 at %p failed\n", heapList);
+		return FALSE;
+	}
+	while (listEntry.Flink != heapList)
+	{
+		ULONG offset;
+		::GetFieldOffset("ntdll!_DPH_HEAP_ROOT", "NextHeap", &offset);
+		ULONG64 heapRoot = listEntry.Flink - offset;
+		DPRINTF("push heapRoot %p\n", heapRoot);
+		heapRoots.push_back(heapRoot);
+		if (!READMEMORY(listEntry.Flink, listEntry))
+		{
+			dprintf("read LIST_ENTRY64 at %p failed\n", listEntry.Flink);
+			return FALSE;
+		}
+	}
+
+	for (std::vector<ULONG64>::iterator itr = heapRoots.begin(); itr != heapRoots.end(); itr++)
+	{
+		ULONG offset;
+
+		ULONG64 normalHeap;
+		if (GetFieldValue(*itr, "ntdll!_DPH_HEAP_ROOT", "NormalHeap", normalHeap))
+		{
+			dprintf("read NormalHeap failed\n");
+			return FALSE;
+		}
+
+		DPRINTF("heap at %p, _DPH_HEAP_ROOT %p\n", normalHeap, *itr);
+		processor->StartHeap(normalHeap);
+		std::list<HeapRecord> records;
+
+		GetFieldOffset("ntdll!_DPH_HEAP_ROOT", "BusyNodesTable", &offset);
+		if (!WalkBalancedLinks(*itr + offset, params, AnalyzeDphHeapBlock64, &records))
+		{
+			dprintf("WalkBalancedLinks failed\n");
+			return FALSE;
+		}
+		
+		records.sort(predicate);
+		for (std::list<HeapRecord>::iterator itr_ = records.begin();
+			itr_ != records.end();
+			itr_++)
+		{
+			processor->Register(itr_->ustAddress,
+				itr_->size, itr_->address,
+				itr_->userSize, itr_->userAddress);
+		}
+		processor->FinishHeap(normalHeap);
+	}
+	return TRUE;
+}
+
+static BOOL AnalyzeDphHeap(IProcessor *processor, const CommonParams &params)
+{
+	ULONG64 heapList = GetExpression("verifier!AVrfpDphPageHeapList");
+	DPRINTF("verifier!AVrfpDphPageHeapList: %p\n", heapList);
+	if (IsTarget64())
+	{
+		return AnalyzeDphHeap64(heapList, processor, params);
+	}
+	else
+	{
+		return AnalyzeDphHeap32(heapList, processor, params);
+	}
+}
+
 static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 {
 	ULONG64 heapAddress;
@@ -1034,9 +1295,11 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	params.osVersion = GetOSVersion();
 	params.verbose = verbose;
 	params.ntGlobalFlag = GetNtGlobalFlag();
+	params.isTarget64 = IsTarget64();
 	if (params.ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
 		DPRINTF("hpa enabled\n");
+		return AnalyzeDphHeap(processor, params);
 	}
 	else if (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 	{
@@ -1051,7 +1314,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	{
 		DPRINTF("heap[%d] at %p\n", heapIndex, heapAddress);
 		processor->StartHeap(heapAddress);
-		if (IsTarget64())
+		if (params.isTarget64)
 		{
 			if (!AnalyzeHeap64(heapAddress, params, processor))
 			{
