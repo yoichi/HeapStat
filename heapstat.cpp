@@ -1146,9 +1146,11 @@ static BOOL AnalyzeDphHeap32(ULONG64 heapList, IProcessor *processor, const Comm
 			itr_ != records.end();
 			itr_++)
 		{
+			processor->StartSegment(itr_->address, itr_->address + itr_->size);
 			processor->Register(itr_->ustAddress,
 				itr_->size, itr_->address,
 				itr_->userSize, itr_->userAddress);
+			processor->FinishSegment(itr_->address, itr_->address + itr_->size);
 		}
 		processor->FinishHeap(normalHeap);
 	}
@@ -1264,9 +1266,11 @@ static BOOL AnalyzeDphHeap64(ULONG64 heapList, IProcessor *processor, const Comm
 			itr_ != records.end();
 			itr_++)
 		{
+			processor->StartSegment(itr_->address, itr_->address + itr_->size);
 			processor->Register(itr_->ustAddress,
 				itr_->size, itr_->address,
 				itr_->userSize, itr_->userAddress);
+			processor->FinishSegment(itr_->address, itr_->address + itr_->size);
 		}
 		processor->FinishHeap(normalHeap);
 	}
