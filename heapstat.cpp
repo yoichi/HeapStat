@@ -1346,10 +1346,10 @@ DECLARE_API(help)
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
 	dprintf("Help for extension dll heapstat.dll\n"
-			"   heapstat [-v]   - Shows statistics of heaps\n"
-			"   umdh <file>     - Generate umdh output\n"
-			"   ust <addr>      - Shows stacktrace of the ust record at <addr>\n"
-			"   help            - Shows this help\n");
+			"   heapstat [-v] [-k module!symbol] - Shows statistics of heaps\n"
+			"   umdh <file>                      - Generate umdh output\n"
+			"   ust <addr>                       - Shows stacktrace of the ust record at <addr>\n"
+			"   help                             - Shows this help\n");
 }
 
 DECLARE_API(heapstat)
@@ -1360,11 +1360,32 @@ DECLARE_API(heapstat)
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
 	BOOL verbose = FALSE;
+	char *key = NULL;
 
-	if (strcmp("-v", args) == 0)
+	std::vector<char> buffer;
+	buffer.resize(strlen(args) + 1);
+	memcpy(&buffer[0], args, buffer.size());
+	char *token, *nextToken;
+	const char *delim = " ";
+	token = strtok_s(&buffer[0], delim, &nextToken);
+	while (token != NULL)
 	{
-		dprintf("verbose mode\n");
-		verbose = TRUE;
+		if (strcmp("-v", token) == 0)
+		{
+			dprintf("verbose mode\n");
+			verbose = TRUE;
+		}
+		else if (strcmp("-k", token) == 0)
+		{
+			token = strtok_s(NULL, delim, &nextToken);
+			if (token == NULL)
+			{
+				dprintf("no key specified after -k\n");
+				return;
+			}
+			key = token;
+		}
+		token = strtok_s(NULL, delim, &nextToken);
 	}
 
 	SummaryProcessor processor;
@@ -1374,7 +1395,14 @@ DECLARE_API(heapstat)
 		return;
 	}
 
-	processor.Print();
+	if (key == NULL)
+	{
+		processor.Print();
+	}
+	else
+	{
+		processor.Print(key);
+	}
 }
 
 DECLARE_API(umdh)

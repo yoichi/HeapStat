@@ -1,4 +1,3 @@
-#include <list>
 #include "common.h"
 #include "SummaryProcessor.h"
 
@@ -109,21 +108,52 @@ void SummaryProcessor::Print()
 	}
 	dprintf("\n");
 
+	dprintf("total size: %p\n", totalSize_);
+	PrintUstRecords(sorted);
+}
+
+void SummaryProcessor::Print(const char *key)
+{
+	ULONG64 totalSize = 0;
+	std::list<UstRecord> sorted;
+	for (std::map<ULONG64, UstRecord>::iterator itr_ = records_.begin(); itr_ != records_.end(); ++itr_)
+	{
+		if (!HasMatchedFrame(itr_->second.ustAddress, key))
+		{
+			continue;
+		}
+		// sort by total size
+		std::list<UstRecord>::iterator itr = sorted.begin();
+		while (itr != sorted.end())
+		{
+			if (itr->totalSize < itr_->second.totalSize)
+			{
+				break;
+			}
+			++itr;
+		}
+		sorted.insert(itr, itr_->second);
+		totalSize += itr_->second.totalSize;
+	}
+	dprintf("total size: %p\n", totalSize);
+	PrintUstRecords(sorted);
+}
+
+void SummaryProcessor::PrintUstRecords(std::list<UstRecord>& records)
+{
 	if (IsPtr64())
 	{
-		dprintf("total size: %p\n", totalSize_);
 		dprintf("----------------------------------------------------------------------------------------\n");
 		dprintf("             ust,            count,            total,              max,            entry\n");
 		dprintf("----------------------------------------------------------------------------------------\n");
 	}
 	else
 	{
-		dprintf("total size: %p\n", totalSize_);
 		dprintf("------------------------------------------------\n");
 		dprintf("     ust,    count,    total,      max,    entry\n");
 		dprintf("------------------------------------------------\n");
 	}
-	for (std::list<UstRecord>::iterator itr = sorted.begin(); itr != sorted.end(); ++itr)
+	for (std::list<UstRecord>::iterator itr = records.begin(); itr != records.end(); ++itr)
 	{
 		dprintf("%p, %p, %p, %p, %p\n",
 			itr->ustAddress,
@@ -174,6 +204,22 @@ ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<Module
 		return NULL;
 	}
 	return NULL;
+}
+
+BOOL SummaryProcessor::HasMatchedFrame(ULONG64 ustAddress, const char *key)
+{
+	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress);
+	for (std::vector<ULONG64>::iterator itr = stackTrace.begin(); itr != stackTrace.end(); itr++)
+	{
+		static CHAR buffer[256];
+		ULONG64 displacement;
+		GetSymbol(*itr, buffer, &displacement);
+		if (strncmp(buffer, key, strlen(key)) == 0)
+		{
+			return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 void SummaryProcessor::PrintStackTrace(ULONG64 ustAddress)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <list>
 #include <map>
 #include <vector>
 #include "IProcessor.h"
@@ -24,9 +25,20 @@ private:
 	std::map<ULONG64, UstRecord> records_;
 
 	/**
+	*	@brief print list of UstRecord
+	*/
+	void PrintUstRecords(std::list<UstRecord>& records);
+
+	/**
 	*	@brief get caller module base address
 	*/
 	ULONG64 GetCallerModule(ULONG64 ustAddress, std::vector<ModuleInfo> &loadedModules);
+
+	/**
+	*	@brief test ust has matched frame
+	*	@param key [in] prefix search key
+	*/
+	BOOL HasMatchedFrame(ULONG64 ustAddress, const char *key);
 
 	/**
 	*	@brief print stack trace
@@ -71,4 +83,10 @@ public:
 	*	@brief print summary of heap usage
 	*/
 	void Print();
+
+	/**
+	*	@brief print summary of matched heap usage
+	*	@param key [in] prefix search key
+	*/
+	void Print(const char *key);
 };
