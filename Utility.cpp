@@ -8,12 +8,22 @@ bool IsTarget64()
 	return (address >> 32) != 0;
 }
 
-ULONG32 GetNtGlobalFlag()
+ULONG64 GetPebAddress()
 {
 	ULONG64 address;
-	ULONG32 ntGlobalFlag;
-
 	GetPebAddress(NULL, &address);
+	if (!IsTarget64() && IsPtr64())
+	{
+		// apply offset on WOW64 dump
+		address -= PEB32_OFFSET;
+	}
+	return address;
+}
+
+ULONG32 GetNtGlobalFlag()
+{
+	ULONG32 ntGlobalFlag;
+	ULONG64 address = GetPebAddress();
 	if (IsTarget64())
 	{
 		if (GetFieldValue(address, "ntdll!_PEB", "NtGlobalFlag", ntGlobalFlag) != 0)
@@ -24,10 +34,6 @@ ULONG32 GetNtGlobalFlag()
 	}
 	else
 	{
-		if (IsPtr64())
-		{
-			address -= PEB32_OFFSET;
-		}
 		ULONG cb;
 		if (!READMEMORY(address + 0x68, ntGlobalFlag))
 		{
@@ -40,10 +46,8 @@ ULONG32 GetNtGlobalFlag()
 
 ULONG64 GetOSVersion()
 {
-	ULONG64 address;
 	ULONG32 osMajorVersion, osMinorVersion;
-
-	GetPebAddress(NULL, &address);
+	ULONG64 address =  GetPebAddress();
 	if (IsTarget64())
 	{
 		if (GetFieldValue(address, "ntdll!_PEB", "OSMajorVersion", osMajorVersion) != 0)
@@ -59,10 +63,6 @@ ULONG64 GetOSVersion()
 	}
 	else
 	{
-		if (IsPtr64())
-		{
-			address -= PEB32_OFFSET;
-		}
 		ULONG cb;
 		if (!READMEMORY(address + 0xa4, osMajorVersion))
 		{
@@ -158,14 +158,8 @@ std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
 std::vector<ModuleInfo> GetLoadedModules()
 {
 	std::vector<ModuleInfo> info;
-	ULONG64 pebAddress;
-	GetPebAddress(NULL, &pebAddress);
-	if (!IsTarget64() && IsPtr64())
-	{
-		pebAddress -= PEB32_OFFSET;
-	}
-
 	ULONG cb;
+	ULONG64 pebAddress = GetPebAddress();
 	if (IsTarget64())
 	{
 		ULONG64 ldr;

@@ -177,12 +177,7 @@ static ULONG64 GetHeapAddress(ULONG index)
 {
 	const bool isTarget64 = IsTarget64();
 
-	ULONG64 address;
-	GetPebAddress(NULL, &address);
-	if (!isTarget64 && IsPtr64())
-	{
-		address -= PEB32_OFFSET;
-	}
+	ULONG64 address = GetPebAddress();
 
 	ULONG cb;
 	ULONG32 numberOfHeaps;

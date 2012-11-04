@@ -21,6 +21,11 @@
 bool IsTarget64();
 
 /**
+*	@brief obtain PEB address
+*/
+ULONG64 GetPebAddress();
+
+/**
 *	@brief get NtGlobalFlag from PEB
 */
 ULONG32 GetNtGlobalFlag();
