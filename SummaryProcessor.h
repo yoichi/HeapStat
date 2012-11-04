@@ -1,7 +1,7 @@
 #pragma once
 
-#include <list>
 #include <map>
+#include <set>
 #include <vector>
 #include "IProcessor.h"
 #include "Utility.h"
@@ -20,14 +20,18 @@ private:
 		ULONG64 totalSize;
 		ULONG64 maxSize;
 		ULONG64 largestEntry;
+		bool operator< (const SummaryProcessor::UstRecord& rhs) const
+		{
+			return totalSize < rhs.totalSize;
+		}
 	};
 
 	std::map<ULONG64, UstRecord> records_;
 
 	/**
-	*	@brief print list of UstRecord
+	*	@brief print set of UstRecord
 	*/
-	void PrintUstRecords(std::list<UstRecord>& records);
+	void PrintUstRecords(std::set<UstRecord>& records);
 
 	/**
 	*	@brief get caller module base address

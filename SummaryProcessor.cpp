@@ -1,3 +1,4 @@
+#include <list>
 #include "common.h"
 #include "SummaryProcessor.h"
 
@@ -45,7 +46,7 @@ void SummaryProcessor::Register(ULONG64 ustAddress,
 void SummaryProcessor::Print()
 {
 	std::vector<ModuleInfo> loadedModules = GetLoadedModules();
-	std::list<UstRecord> sorted;
+	std::set<UstRecord> sorted;
 	std::map<ULONG64, ULONG64> byCaller;
 	for (std::map<ULONG64, UstRecord>::iterator itr_ = records_.begin(); itr_ != records_.end(); ++itr_)
 	{
@@ -60,17 +61,7 @@ void SummaryProcessor::Print()
 			byCaller[module] += itr_->second.totalSize;
 		}
 
-		// sort by total size
-		std::list<UstRecord>::iterator itr = sorted.begin();
-		while (itr != sorted.end())
-		{
-			if (itr->totalSize < itr_->second.totalSize)
-			{
-				break;
-			}
-			++itr;
-		}
-		sorted.insert(itr, itr_->second);
+		sorted.insert(itr_->second);
 	}
 
 	dprintf("total size per caller:\n");
@@ -115,31 +106,21 @@ void SummaryProcessor::Print()
 void SummaryProcessor::Print(const char *key)
 {
 	ULONG64 totalSize = 0;
-	std::list<UstRecord> sorted;
+	std::set<UstRecord> sorted;
 	for (std::map<ULONG64, UstRecord>::iterator itr_ = records_.begin(); itr_ != records_.end(); ++itr_)
 	{
 		if (!HasMatchedFrame(itr_->second.ustAddress, key))
 		{
 			continue;
 		}
-		// sort by total size
-		std::list<UstRecord>::iterator itr = sorted.begin();
-		while (itr != sorted.end())
-		{
-			if (itr->totalSize < itr_->second.totalSize)
-			{
-				break;
-			}
-			++itr;
-		}
-		sorted.insert(itr, itr_->second);
+		sorted.insert(itr_->second);
 		totalSize += itr_->second.totalSize;
 	}
 	dprintf("total size: %p\n", totalSize);
 	PrintUstRecords(sorted);
 }
 
-void SummaryProcessor::PrintUstRecords(std::list<UstRecord>& records)
+void SummaryProcessor::PrintUstRecords(std::set<UstRecord>& records)
 {
 	if (IsPtr64())
 	{
@@ -153,7 +134,7 @@ void SummaryProcessor::PrintUstRecords(std::list<UstRecord>& records)
 		dprintf("     ust,    count,    total,      max,    entry\n");
 		dprintf("------------------------------------------------\n");
 	}
-	for (std::list<UstRecord>::iterator itr = records.begin(); itr != records.end(); ++itr)
+	for (std::set<UstRecord>::reverse_iterator itr = records.rbegin(); itr != records.rend(); ++itr)
 	{
 		dprintf("%p, %p, %p, %p, %p\n",
 			itr->ustAddress,

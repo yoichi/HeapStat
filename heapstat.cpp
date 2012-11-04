@@ -68,12 +68,16 @@ typedef struct {
 } UstRecord;
 
 // representation of heap entry
-typedef struct {
+typedef struct _HeapRecord {
 	ULONG64 ustAddress;
 	ULONG64 size;
 	ULONG64 address;
 	ULONG64 userSize;
 	ULONG64 userAddress;
+	bool operator< (const struct _HeapRecord& rhs) const
+	{
+		return address < rhs.address;
+	}
 } HeapRecord;
 
 // common parameter
@@ -341,7 +345,7 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
@@ -420,7 +424,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::list
 					{
 						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
 							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-						lfhRecords.push_back(record);
+						lfhRecords.insert(record);
 					}
 					else
 					{
@@ -436,7 +440,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::list
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
@@ -512,7 +516,7 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::list
 					{
 						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
 							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
-						lfhRecords.push_back(record);
+						lfhRecords.insert(record);
 					}
 					else
 					{
@@ -528,7 +532,7 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::list
 	return TRUE;
 }
 
-static BOOL AnalyzeLFH32(ULONG64 heapAddress, const CommonParams &params, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFH32(ULONG64 heapAddress, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("analyze LFH for HEAP %p\n", heapAddress);
 	ULONG cb;
@@ -582,7 +586,7 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, const CommonParams &params, std::l
 	return TRUE;
 }
 
-static BOOL AnalyzeLFH64(ULONG64 heapAddress, const CommonParams &params, std::list<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFH64(ULONG64 heapAddress, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("analyze LFH for HEAP %p\n", heapAddress);
 	ULONG cb;
@@ -638,7 +642,7 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, const CommonParams &params, std::l
 	return TRUE;
 }
 
-static BOOL AnalyzeVirtualAllocd32(ULONG64 heapAddress, const HeapEntry &encoding, const CommonParams &params, std::list<HeapRecord> &records)
+static BOOL AnalyzeVirtualAllocd32(ULONG64 heapAddress, const HeapEntry &encoding, const CommonParams &params, std::set<HeapRecord> &records)
 {
 	DPRINTF("analyze VirtualAllocdBlocks for HEAP %p\n", heapAddress);
 	ULONG cb;
@@ -701,7 +705,7 @@ static BOOL AnalyzeVirtualAllocd32(ULONG64 heapAddress, const HeapEntry &encodin
 
 		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
 			record.ustAddress, record.userAddress, record.userSize, record.size - record.userSize);
-		records.push_back(record);
+		records.insert(record);
 
 		if (!READMEMORY(listEntry.Flink, listEntry))
 		{
@@ -712,7 +716,7 @@ static BOOL AnalyzeVirtualAllocd32(ULONG64 heapAddress, const HeapEntry &encodin
 	return TRUE;
 }
 
-static BOOL AnalyzeVirtualAllocd64(ULONG64 heapAddress, const Heap64Entry &encoding, const CommonParams &params, std::list<HeapRecord> &records)
+static BOOL AnalyzeVirtualAllocd64(ULONG64 heapAddress, const Heap64Entry &encoding, const CommonParams &params, std::set<HeapRecord> &records)
 {
 	DPRINTF("analyze VirtualAllocdBlocks for HEAP %p\n", heapAddress);
 	ULONG cb;
@@ -776,7 +780,7 @@ static BOOL AnalyzeVirtualAllocd64(ULONG64 heapAddress, const Heap64Entry &encod
 
 		DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
 			record.ustAddress, record.userAddress, record.userSize, record.size - record.userSize);
-		records.push_back(record);
+		records.insert(record);
 
 		if (GetFieldValue(listEntry.Flink, "ntdll!_LIST_ENTRY", "Flink", listEntry) != 0)
 		{
@@ -789,31 +793,25 @@ static BOOL AnalyzeVirtualAllocd64(ULONG64 heapAddress, const Heap64Entry &encod
 
 static void Register(
 		const HeapRecord &record,
-		std::list<HeapRecord> &lfhRecords,
+		std::set<HeapRecord> &lfhRecords,
 		IProcessor *processor)
 {
 	while (!lfhRecords.empty() && lfhRecords.begin()->address < record.address)
 	{
-		std::list<HeapRecord>::iterator itr = lfhRecords.begin();
+		std::set<HeapRecord>::iterator itr = lfhRecords.begin();
 		//dprintf("Register: insert entry %p\n", itr->address);
 		processor->Register(itr->ustAddress,
 			itr->size, itr->address, itr->userSize, itr->userAddress);
-		lfhRecords.pop_front();
+		lfhRecords.erase(lfhRecords.begin());
 	}
 	processor->Register(record.ustAddress,
 		record.size, record.address, record.userSize, record.userAddress);
 }
 
-static bool predicate(const HeapRecord &record1, const HeapRecord &record2)
-{
-	return record1.address < record2.address;
-}
-
 static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProcessor *processor)
 {
-	std::list<HeapRecord> lfhRecords;
+	std::set<HeapRecord> lfhRecords;
 	AnalyzeLFH32(heapAddress, params, lfhRecords);
-	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 
 	const ULONG blockUnit = 8;
@@ -825,9 +823,8 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 		return FALSE;
 	}
 
-	std::list<HeapRecord> vallocRecords;
+	std::set<HeapRecord> vallocRecords;
 	AnalyzeVirtualAllocd32(heapAddress, encoding, params, vallocRecords);
-	vallocRecords.sort(predicate);
 	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
@@ -843,14 +840,14 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
-		std::list<HeapRecord> lfhRecordsInSegment;
-		for (std::list<HeapRecord>::iterator itr = lfhRecords.begin();
+		std::set<HeapRecord> lfhRecordsInSegment;
+		for (std::set<HeapRecord>::iterator itr = lfhRecords.begin();
 			itr != lfhRecords.end();
 			itr++)
 		{
 			if (segment.FirstEntry < itr->address && itr->address < segment.LastValidEntry)
 			{
-				lfhRecordsInSegment.push_back(*itr);
+				lfhRecordsInSegment.insert(*itr);
 			}
 		}
 		DPRINTF("%d LFH records in segment %p\n", (int)lfhRecordsInSegment.size(), heapAddress);
@@ -898,7 +895,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 			address += entry.Size * blockUnit;
 		}
-		for (std::list<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
+		for (std::set<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
 			itr != lfhRecordsInSegment.end();
 			itr++)
 		{
@@ -911,7 +908,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 		heapAddress = segment.SegmentListEntry.Flink - 0x10;
 		index++;
 	}
-	for (std::list<HeapRecord>::iterator itr = vallocRecords.begin();
+	for (std::set<HeapRecord>::iterator itr = vallocRecords.begin();
 		itr != vallocRecords.end();
 		itr++)
 	{
@@ -924,9 +921,8 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 
 static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProcessor *processor)
 {
-	std::list<HeapRecord> lfhRecords;
+	std::set<HeapRecord> lfhRecords;
 	AnalyzeLFH64(heapAddress, params, lfhRecords);
-	lfhRecords.sort(predicate);
 	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 
 	const ULONG blockUnit = 16;
@@ -938,9 +934,8 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 		return FALSE;
 	}
 
-	std::list<HeapRecord> vallocRecords;
+	std::set<HeapRecord> vallocRecords;
 	AnalyzeVirtualAllocd64(heapAddress, encoding, params, vallocRecords);
-	vallocRecords.sort(predicate);
 	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
@@ -956,14 +951,14 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
 		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
-		std::list<HeapRecord> lfhRecordsInSegment;
-		for (std::list<HeapRecord>::iterator itr = lfhRecords.begin();
+		std::set<HeapRecord> lfhRecordsInSegment;
+		for (std::set<HeapRecord>::iterator itr = lfhRecords.begin();
 			itr != lfhRecords.end();
 			itr++)
 		{
 			if (segment.FirstEntry < itr->address && itr->address < segment.LastValidEntry)
 			{
-				lfhRecordsInSegment.push_back(*itr);
+				lfhRecordsInSegment.insert(*itr);
 			}
 		}
 		DPRINTF("%d LFH records in segment %p\n", (int)lfhRecordsInSegment.size(), heapAddress);
@@ -1011,7 +1006,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 			address += entry.Size * blockUnit;
 		}
-		for (std::list<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
+		for (std::set<HeapRecord>::iterator itr = lfhRecordsInSegment.begin();
 			itr != lfhRecordsInSegment.end();
 			itr++)
 		{
@@ -1024,7 +1019,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
 		index++;
 	}
-	for (std::list<HeapRecord>::iterator itr = vallocRecords.begin();
+	for (std::set<HeapRecord>::iterator itr = vallocRecords.begin();
 		itr != vallocRecords.end();
 		itr++)
 	{
@@ -1038,7 +1033,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 static BOOL AnalyzeDphHeapBlock32(ULONG64 address, const CommonParams &params, void *arg)
 {
 	ULONG cb;
-	std::list<HeapRecord> *records = static_cast<std::list<HeapRecord> *>(arg);
+	std::set<HeapRecord> *records = static_cast<std::set<HeapRecord> *>(arg);
 	DPRINTF("_DPH_HEAP_BLOCK %p\n", address);
 	ULONG32 pUserAllocation;
 	// _DPH_HEAP_BLOCK::pUserAllocation
@@ -1087,7 +1082,7 @@ static BOOL AnalyzeDphHeapBlock32(ULONG64 address, const CommonParams &params, v
 		record.address = pVirtualBlock;
 		record.userSize = nUserRequestedSize;
 		record.userAddress = pUserAllocation;
-		records->push_back(record);
+		records->insert(record);
 	}
 	return TRUE;
 }
@@ -1127,7 +1122,7 @@ static BOOL AnalyzeDphHeap32(ULONG64 heapList, IProcessor *processor, const Comm
 
 		DPRINTF("heap at %p, _DPH_HEAP_ROOT %p\n", (ULONG64)normalHeap, *itr);
 		processor->StartHeap(normalHeap);
-		std::list<HeapRecord> records;
+		std::set<HeapRecord> records;
 
 		// _DPH_HEAP_ROOT::BusyNodesTable
 		if (!WalkBalancedLinks(*itr + 0x20, params, AnalyzeDphHeapBlock32, &records))
@@ -1136,8 +1131,7 @@ static BOOL AnalyzeDphHeap32(ULONG64 heapList, IProcessor *processor, const Comm
 			return FALSE;
 		}
 
-		records.sort(predicate);
-		for (std::list<HeapRecord>::iterator itr_ = records.begin();
+		for (std::set<HeapRecord>::iterator itr_ = records.begin();
 			itr_ != records.end();
 			itr_++)
 		{
@@ -1156,7 +1150,7 @@ static BOOL AnalyzeDphHeapBlock64(ULONG64 address, const CommonParams &params, v
 {
 	ULONG cb;
 	const char *type = "ntdll!_DPH_HEAP_BLOCK";
-	std::list<HeapRecord> *records = static_cast<std::list<HeapRecord> *>(arg);
+	std::set<HeapRecord> *records = static_cast<std::set<HeapRecord> *>(arg);
 	DPRINTF("_DPH_HEAP_BLOCK %p\n", address);
 	ULONG64 pUserAllocation;
 	// _DPH_HEAP_BLOCK::pUserAllocation
@@ -1205,7 +1199,7 @@ static BOOL AnalyzeDphHeapBlock64(ULONG64 address, const CommonParams &params, v
 		record.address = pVirtualBlock;
 		record.userSize = nUserRequestedSize;
 		record.userAddress = pUserAllocation;
-		records->push_back(record);
+		records->insert(record);
 	}
 	return TRUE;
 }
@@ -1247,7 +1241,7 @@ static BOOL AnalyzeDphHeap64(ULONG64 heapList, IProcessor *processor, const Comm
 
 		DPRINTF("heap at %p, _DPH_HEAP_ROOT %p\n", normalHeap, *itr);
 		processor->StartHeap(normalHeap);
-		std::list<HeapRecord> records;
+		std::set<HeapRecord> records;
 
 		GetFieldOffset("ntdll!_DPH_HEAP_ROOT", "BusyNodesTable", &offset);
 		if (!WalkBalancedLinks(*itr + offset, params, AnalyzeDphHeapBlock64, &records))
@@ -1256,8 +1250,7 @@ static BOOL AnalyzeDphHeap64(ULONG64 heapList, IProcessor *processor, const Comm
 			return FALSE;
 		}
 		
-		records.sort(predicate);
-		for (std::list<HeapRecord>::iterator itr_ = records.begin();
+		for (std::set<HeapRecord>::iterator itr_ = records.begin();
 			itr_ != records.end();
 			itr_++)
 		{
