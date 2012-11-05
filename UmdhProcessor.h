@@ -41,21 +41,11 @@ public:
 	void StartHeap(ULONG64 heapAddress);
 
 	/**
-	*	@copydoc IProcessor::StartSegment()
-	*/
-	void StartSegment(ULONG64 /*start*/, ULONG64 /*end*/) {}
-
-	/**
 	*	@copydoc IProcessor::Register()
 	*/
 	void Register(ULONG64 ustAddress,
 		ULONG64 size, ULONG64 address,
 		ULONG64 userSize, ULONG64 userAddress);
-
-	/**
-	*	@copydoc IProcessor::FinishSegment()
-	*/
-	void FinishSegment(ULONG64 /*start*/, ULONG64 /*end*/) {}
 
 	/**
 	*	@copydoc IProcessor::FinishHeap()

@@ -3,13 +3,7 @@
 #include "SummaryProcessor.h"
 
 SummaryProcessor::SummaryProcessor()
-: totalSize_(0)
 {
-}
-
-void SummaryProcessor::StartSegment(ULONG64 start, ULONG64 end)
-{
-	totalSize_ += end - start;
 }
 
 void SummaryProcessor::Register(ULONG64 ustAddress,
@@ -45,6 +39,7 @@ void SummaryProcessor::Register(ULONG64 ustAddress,
 
 void SummaryProcessor::Print()
 {
+	ULONG64 totalSize = 0;
 	std::vector<ModuleInfo> loadedModules = GetLoadedModules();
 	std::set<UstRecord> sorted;
 	std::map<ULONG64, ULONG64> byCaller;
@@ -62,6 +57,7 @@ void SummaryProcessor::Print()
 		}
 
 		sorted.insert(itr_->second);
+		totalSize += itr_->second.totalSize;
 	}
 
 	dprintf("total size per caller:\n");
@@ -99,7 +95,7 @@ void SummaryProcessor::Print()
 	}
 	dprintf("\n");
 
-	dprintf("total size: %p\n", totalSize_);
+	dprintf("total size: %p\n", totalSize);
 	PrintUstRecords(sorted);
 }
 

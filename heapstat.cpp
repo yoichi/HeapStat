@@ -838,7 +838,6 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 		}
 		DPRINTF("Segment at %p to %p\n", heapAddress, (ULONG64)segment.LastValidEntry);
 		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
-		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
 		std::set<HeapRecord> lfhRecordsInSegment;
 		for (std::set<HeapRecord>::iterator itr = lfhRecords.begin();
@@ -904,7 +903,6 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 				itr->size, itr->address,
 				itr->userSize, itr->userAddress);
 		}
-		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x10;
 		index++;
 	}
@@ -949,7 +947,6 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 		}
 		DPRINTF("Segment at %p to %p\n", heapAddress, segment.LastValidEntry);
 		DPRINTF("NumberOfUnCommittedPages:%p, NumberOfUnCommittedRanges:%p\n", (ULONG64)segment.NumberOfUnCommittedPages, (ULONG64)segment.NumberOfUnCommittedRanges);
-		processor->StartSegment(heapAddress, segment.LastValidEntry);
 
 		std::set<HeapRecord> lfhRecordsInSegment;
 		for (std::set<HeapRecord>::iterator itr = lfhRecords.begin();
@@ -1015,7 +1012,6 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 				itr->size, itr->address,
 				itr->userSize, itr->userAddress);
 		}
-		processor->FinishSegment(heapAddress, segment.LastValidEntry);
 		heapAddress = segment.SegmentListEntry.Flink - 0x18;
 		index++;
 	}
@@ -1135,11 +1131,9 @@ static BOOL AnalyzeDphHeap32(ULONG64 heapList, IProcessor *processor, const Comm
 			itr_ != records.end();
 			itr_++)
 		{
-			processor->StartSegment(itr_->address, itr_->address + itr_->size);
 			processor->Register(itr_->ustAddress,
 				itr_->size, itr_->address,
 				itr_->userSize, itr_->userAddress);
-			processor->FinishSegment(itr_->address, itr_->address + itr_->size);
 		}
 		processor->FinishHeap(normalHeap);
 	}
@@ -1254,11 +1248,9 @@ static BOOL AnalyzeDphHeap64(ULONG64 heapList, IProcessor *processor, const Comm
 			itr_ != records.end();
 			itr_++)
 		{
-			processor->StartSegment(itr_->address, itr_->address + itr_->size);
 			processor->Register(itr_->ustAddress,
 				itr_->size, itr_->address,
 				itr_->userSize, itr_->userAddress);
-			processor->FinishSegment(itr_->address, itr_->address + itr_->size);
 		}
 		processor->FinishHeap(normalHeap);
 	}
