@@ -157,7 +157,9 @@ ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<Module
 			*ch = '\0';
 		}
 		const CHAR *ntdll = "ntdll";
-		if (strcmp(buffer, ntdll) == 0)
+		const CHAR *ntdll_ = "ntdll_";
+		if (strcmp(buffer, ntdll) == 0 ||
+			strncmp(buffer, ntdll_, strlen(ntdll_)) == 0)
 		{
 			continue;
 		}
