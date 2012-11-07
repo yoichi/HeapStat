@@ -9,7 +9,6 @@
 #define NT_GLOBAL_FLAG_HPA 0x02000000 // page heap enabled
 
 #define PAGE_SIZE 0x1000
-#define PEB32_OFFSET PAGE_SIZE // PEB64 - PEB32 offset
 
 #define READMEMORY(address, var) (ReadMemory(address, &var, sizeof(var), &cb) && cb == sizeof(var))
 

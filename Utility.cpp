@@ -10,14 +10,34 @@ bool IsTarget64()
 
 ULONG64 GetPebAddress()
 {
-	ULONG64 address;
-	GetPebAddress(NULL, &address);
 	if (!IsTarget64() && IsPtr64())
 	{
-		// apply offset on WOW64 dump
-		address -= PEB32_OFFSET;
+		// WOW64
+		ULONG64 teb;
+		GetTebAddress(&teb);
+
+		ULONG cb;
+		ULONG32 teb32;
+		if (!READMEMORY(teb, teb32))
+		{
+			dprintf("read TEB32 at %p failed\n", teb);
+			return NULL;
+		}
+
+		ULONG32 peb32; // _TEB::ProcessEnvironmentBlock
+		if (!READMEMORY(teb32 + 0x30, peb32))
+		{
+			dprintf("read PEB32 at %p failed\n", teb32 + 0x30);
+			return NULL;
+		}
+		return peb32;
 	}
-	return address;
+	else
+	{
+		ULONG64 address;
+		GetPebAddress(NULL, &address);
+		return address;
+	}
 }
 
 ULONG32 GetNtGlobalFlag()
