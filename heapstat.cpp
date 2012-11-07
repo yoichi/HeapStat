@@ -812,7 +812,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 {
 	std::set<HeapRecord> lfhRecords;
 	AnalyzeLFH32(heapAddress, params, lfhRecords);
-	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
+	DPRINTF("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 
 	const ULONG blockUnit = 8;
 	ULONG cb;
@@ -825,7 +825,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 
 	std::set<HeapRecord> vallocRecords;
 	AnalyzeVirtualAllocd32(heapAddress, encoding, params, vallocRecords);
-	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
+	DPRINTF("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
@@ -921,7 +921,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 {
 	std::set<HeapRecord> lfhRecords;
 	AnalyzeLFH64(heapAddress, params, lfhRecords);
-	dprintf("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
+	DPRINTF("found %d LFH records in heap %p\n", (int)lfhRecords.size(), heapAddress);
 
 	const ULONG blockUnit = 16;
 	ULONG cb;
@@ -934,7 +934,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 
 	std::set<HeapRecord> vallocRecords;
 	AnalyzeVirtualAllocd64(heapAddress, encoding, params, vallocRecords);
-	dprintf("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
+	DPRINTF("found %d valloc records in heap %p\n", (int)vallocRecords.size(), heapAddress);
 
 	int index = 0;
 	while ((heapAddress & 0xffff) == 0)
