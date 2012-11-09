@@ -416,8 +416,20 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 				}
 				entry.Size = blockSize;
 
-				UCHAR busy = (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
-				if (entry.ExtendedBlockSignature == busy)
+				bool busy;
+				if (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST)
+				{
+					busy = (entry.ExtendedBlockSignature == 0xc2);
+				}
+				else
+				{
+					if (entry.ExtendedBlockSignature > 0x80)
+					{
+						busy = true;
+						entry.ExtendedBlockSignature -= 0x80;
+					}
+				}
+				if (busy)
 				{
 					HeapRecord record;
 					if (ParseHeapRecord32(address, entry, params.ntGlobalFlag, record))
@@ -508,8 +520,20 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 				}
 				entry.Size = blockSize;
 
-				UCHAR busy = (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) != 0 ? 0xc2 : 0x88;
-				if (entry.ExtendedBlockSignature == busy)
+				bool busy;
+				if (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST)
+				{
+					busy = (entry.ExtendedBlockSignature == 0xc2);
+				}
+				else
+				{
+					if (entry.ExtendedBlockSignature > 0x80)
+					{
+						busy = true;
+						entry.ExtendedBlockSignature -= 0x80;
+					}
+				}
+				if (busy)
 				{
 					HeapRecord record;
 					if (ParseHeapRecord64(address, entry, params.ntGlobalFlag, record))
