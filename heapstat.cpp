@@ -290,6 +290,11 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 	else
 	{
 		record.ustAddress = 0;
+		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
+		{
+			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
+			return FALSE;
+		}
 		record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
 		record.userAddress = address + sizeof(entry);
 	}
@@ -337,6 +342,11 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 	else
 	{
 		record.ustAddress = 0;
+		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
+		{
+			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
+			return FALSE;
+		}
 		record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
 		record.userAddress = address + sizeof(entry);
 	}
@@ -416,7 +426,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 				}
 				entry.Size = blockSize;
 
-				bool busy;
+				bool busy = false;
 				if (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 				{
 					busy = (entry.ExtendedBlockSignature == 0xc2);
@@ -520,7 +530,7 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 				}
 				entry.Size = blockSize;
 
-				bool busy;
+				bool busy = false;
 				if (params.ntGlobalFlag & NT_GLOBAL_FLAG_UST)
 				{
 					busy = (entry.ExtendedBlockSignature == 0xc2);
