@@ -1,6 +1,7 @@
 #include "common.h"
 #include "Utility.h"
 #include "SummaryProcessor.h"
+#include "BySizeProcessor.h"
 #include "UmdhProcessor.h"
 #include <list>
 
@@ -1361,6 +1362,7 @@ DECLARE_API(help)
 
 	dprintf("Help for extension dll heapstat.dll\n"
 			"   heapstat [-v] [-k module!symbol] - Shows statistics of heaps\n"
+			"   bysize [-v]                      - Shows statistics of heaps by size\n"
 			"   umdh <file>                      - Generate umdh output\n"
 			"   ust <addr>                       - Shows stacktrace of the ust record at <addr>\n"
 			"   help                             - Shows this help\n");
@@ -1417,6 +1419,41 @@ DECLARE_API(heapstat)
 	{
 		processor.Print(key);
 	}
+}
+
+DECLARE_API(bysize)
+{
+	UNREFERENCED_PARAMETER(dwProcessor);
+	UNREFERENCED_PARAMETER(dwCurrentPc);
+	UNREFERENCED_PARAMETER(hCurrentThread);
+	UNREFERENCED_PARAMETER(hCurrentProcess);
+
+	BOOL verbose = FALSE;
+
+	std::vector<char> buffer;
+	buffer.resize(strlen(args) + 1);
+	memcpy(&buffer[0], args, buffer.size());
+	char *token, *nextToken;
+	const char *delim = " ";
+	token = strtok_s(&buffer[0], delim, &nextToken);
+	while (token != NULL)
+	{
+		if (strcmp("-v", token) == 0)
+		{
+			dprintf("verbose mode\n");
+			verbose = TRUE;
+		}
+		token = strtok_s(NULL, delim, &nextToken);
+	}
+
+	BySizeProcessor processor;
+
+	if (!AnalyzeHeap(&processor, verbose))
+	{
+		return;
+	}
+
+	processor.Print();
 }
 
 DECLARE_API(umdh)
