@@ -882,7 +882,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 			if (!READMEMORY(address, entry))
 			{
 				dprintf("ReadMemory failed at %p, LastValidEntry is %p\n", address, (ULONG64)segment.LastValidEntry);
-				return FALSE;
+				break;//return FALSE;
 			}
 			if (!DecodeHeapEntry(&entry, &encoding))
 			{
@@ -991,7 +991,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 			if (!READMEMORY(address, entry))
 			{
 				dprintf("ReadMemory failed at %p, LastValidEntry is %p\n", address, segment.LastValidEntry);
-				return FALSE;
+				break;//return FALSE;
 			}
 			if (!DecodeHeap64Entry(&entry, &encoding))
 			{
