@@ -25,7 +25,7 @@ void SummaryProcessor::Register(ULONG64 ustAddress,
 	}
 	else
 	{
-		UstRecord record = itr->second;
+		UstRecord &record = itr->second;
 		record.count++;
 		record.totalSize += size;
 		if (record.maxSize < size)
@@ -33,7 +33,6 @@ void SummaryProcessor::Register(ULONG64 ustAddress,
 			record.maxSize = size;
 			record.largestEntry = address;
 		}
-		records_[ustAddress] = record;
 	}
 }
 

@@ -21,6 +21,9 @@ private:
 		}
 	};
 
+	/**
+	*	@brief ustAddress to UstRecord map
+	*/
 	std::map<ULONG64, UstRecord> records_;
 
 	/**
