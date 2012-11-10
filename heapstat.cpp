@@ -291,6 +291,10 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 	else
 	{
 		record.ustAddress = 0;
+		if (entry.ExtendedBlockSignature < sizeof(entry))
+		{
+			return FALSE;
+		}
 		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
 		{
 			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
@@ -343,6 +347,10 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 	else
 	{
 		record.ustAddress = 0;
+		if (entry.ExtendedBlockSignature + sizeof(entry.PreviousBlockPrivateData) < sizeof(entry))
+		{
+			return FALSE;
+		}
 		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
 		{
 			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
@@ -449,10 +457,6 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						lfhRecords.insert(record);
 					}
-					else
-					{
-						return FALSE;
-					}
 				}
 
 				address += blockSize * blockUnit;
@@ -552,10 +556,6 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 						DPRINTF("ust:%p, userPtr:%p, userSize:%p, extra:%p\n",
 							record.ustAddress, record.userAddress, record.userSize, entry.Size * blockUnit - record.userSize);
 						lfhRecords.insert(record);
-					}
-					else
-					{
-						return FALSE;
 					}
 				}
 
@@ -909,7 +909,7 @@ static BOOL AnalyzeHeap32(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 
 			DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-			if ((params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) && entry.ExtendedBlockSignature == 0x03)
+			if (entry.ExtendedBlockSignature == 0x03)
 			{
 				break;
 			}
@@ -1018,7 +1018,7 @@ static BOOL AnalyzeHeap64(ULONG64 heapAddress, const CommonParams &params, IProc
 			}
 
 			DPRINTF("addr:%p, %04x, %02x, %02x, %04x, %02x, %02x\n", address, entry.Size, entry.Flags, entry.SmallTagIndex, entry.PreviousSize, entry.SegmentOffset, entry.ExtendedBlockSignature);
-			if ((params.ntGlobalFlag & NT_GLOBAL_FLAG_UST) && entry.ExtendedBlockSignature == 0x03)
+			if (entry.ExtendedBlockSignature == 0x03)
 			{
 				break;
 			}
