@@ -1298,7 +1298,7 @@ static BOOL AnalyzeDphHeap(IProcessor *processor, const CommonParams &params)
 {
 	ULONG64 heapList = GetExpression("verifier!AVrfpDphPageHeapList");
 	DPRINTF("verifier!AVrfpDphPageHeapList: %p\n", heapList);
-	if (IsTarget64())
+	if (params.isTarget64)
 	{
 		return AnalyzeDphHeap64(heapList, processor, params);
 	}
