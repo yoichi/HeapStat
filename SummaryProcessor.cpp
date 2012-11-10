@@ -3,6 +3,8 @@
 #include "SummaryProcessor.h"
 
 SummaryProcessor::SummaryProcessor()
+: isTarget64_(IsTarget64())
+, ntGlobalFlag_(GetNtGlobalFlag())
 {
 }
 
@@ -144,7 +146,7 @@ void SummaryProcessor::PrintUstRecords(std::set<UstRecord>& records)
 
 ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<ModuleInfo> &loadedModules)
 {
-	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress);
+	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress, isTarget64_, ntGlobalFlag_);
 	for (std::vector<ULONG64>::iterator itr = stackTrace.begin(); itr != stackTrace.end(); itr++)
 	{
 		static CHAR buffer[256];
@@ -186,7 +188,7 @@ ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<Module
 
 BOOL SummaryProcessor::HasMatchedFrame(ULONG64 ustAddress, const char *key)
 {
-	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress);
+	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress, isTarget64_, ntGlobalFlag_);
 	for (std::vector<ULONG64>::iterator itr = stackTrace.begin(); itr != stackTrace.end(); itr++)
 	{
 		static CHAR buffer[256];
@@ -207,7 +209,7 @@ void SummaryProcessor::PrintStackTrace(ULONG64 ustAddress)
 		return;
 	}
 	PCSTR indent = "\t";
-	std::vector<ULONG64> trace = GetStackTrace(ustAddress);
+	std::vector<ULONG64> trace = GetStackTrace(ustAddress, isTarget64_, ntGlobalFlag_);
 	dprintf("%sust at %p depth: %d\n", indent, ustAddress, trace.size());
 	for (std::vector<ULONG64>::iterator itr = trace.begin(); itr != trace.end(); itr++)
 	{

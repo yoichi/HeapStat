@@ -102,9 +102,9 @@ ULONG64 GetOSVersion()
 	return (((ULONG64)osMajorVersion << 32) | osMinorVersion);
 }
 
-ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress)
+ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress, bool isTarget64)
 {
-	if (IsTarget64())
+	if (isTarget64)
 	{
 		return ustAddress + 0x10;
 	}
@@ -114,17 +114,14 @@ ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress)
 	}
 }
 
-std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
+std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress, bool isTarget64, ULONG32 ntGlobalFlag)
 {
 	std::vector<ULONG64> trace;
 
 	ULONG cb;
-	ULONG32 ntGlobalFlag;
 	USHORT depth;
 	ULONG64 offset;
-	const bool isTarget64 = IsTarget64();
 
-	ntGlobalFlag = GetNtGlobalFlag();
 	if (ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
 		//dprintf("hpa enabled\n");
@@ -147,7 +144,7 @@ std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress)
 		return trace;
 	}
 
-	ULONG64 address = GetStackTraceArrayPtr(ustAddress);
+	ULONG64 address = GetStackTraceArrayPtr(ustAddress, isTarget64);
 	if (isTarget64)
 	{
 		for (int i = 0; i < depth; i++)

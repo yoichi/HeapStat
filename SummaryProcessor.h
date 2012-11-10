@@ -9,6 +9,16 @@
 class SummaryProcessor : public IProcessor
 {
 private:
+	/**
+	*	@brief target is x64 or not
+	*/
+	const bool isTarget64_;
+
+	/**
+	*	@brief gflag
+	*/
+	const ULONG32 ntGlobalFlag_;
+
 	struct UstRecord {
 		ULONG64 ustAddress;
 		ULONG64 count;
@@ -25,6 +35,12 @@ private:
 	*	@brief ustAddress to UstRecord map
 	*/
 	std::map<ULONG64, UstRecord> records_;
+
+	/**
+	*	@brief operator (disabled)
+	*	@note to avoid C4512 warning
+	*/
+	SummaryProcessor& operator=(const SummaryProcessor&);
 
 	/**
 	*	@brief print set of UstRecord

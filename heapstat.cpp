@@ -1493,7 +1493,7 @@ DECLARE_API(ust)
 
 	ULONG64 Address = GetExpression(args);
 
-	std::vector<ULONG64> trace = GetStackTrace(Address);
+	std::vector<ULONG64> trace = GetStackTrace(Address, IsTarget64(), GetNtGlobalFlag());
 	dprintf("ust at %p depth: %d\n", Address, trace.size());
 	for (std::vector<ULONG64>::iterator itr = trace.begin(); itr != trace.end(); itr++)
 	{

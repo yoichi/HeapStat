@@ -41,12 +41,12 @@ ULONG64 GetOSVersion();
 /**
 *	@brief get pointer to stack trace array
 */
-ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress);
+ULONG64 GetStackTraceArrayPtr(ULONG64 ustAddress, bool isTarget64);
 
 /**
 *	@brief get stack trace from user mode stack trace database
 */
-std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress);
+std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress, bool isTarget64, ULONG32 ntGlobalFlag);
 
 /**
 *	@brief module information from LDR_DATA_TABLE_ENTRY

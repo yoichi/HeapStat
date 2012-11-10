@@ -6,6 +6,8 @@
 
 UmdhProcessor::UmdhProcessor(PCSTR filename)
 : output_(INVALID_HANDLE_VALUE)
+, isTarget64_(IsTarget64())
+, ntGlobalFlag_(GetNtGlobalFlag())
 {
 	LPSTR buffer[MAX_PATH];
 	if (!GetCurrentDirectory(_countof(buffer),(LPSTR)buffer))
@@ -114,14 +116,14 @@ void UmdhProcessor::Register(ULONG64 ustAddress,
 {
 	UNREFERENCED_PARAMETER(address);
 
-	ULONG64 backtrace = ustAddress != 0 ? GetStackTraceArrayPtr(ustAddress) : 0;
+	ULONG64 backtrace = ustAddress != 0 ? GetStackTraceArrayPtr(ustAddress, isTarget64_) : 0;
 	CString str;
 	str.Format("%I64X bytes + %I64X at %I64X by BackTrace%I64X\r\n",
 		userSize, size - userSize, userAddress, backtrace);
 	if (ustAddress != 0 && processed_.find(backtrace) == processed_.end())
 	{
 		str = "\r\n" + str;
-		std::vector<ULONG64> trace = ::GetStackTrace(ustAddress);
+		std::vector<ULONG64> trace = ::GetStackTrace(ustAddress, isTarget64_, ntGlobalFlag_);
 		for (std::vector<ULONG64>::iterator itr = trace.begin(); itr != trace.end(); itr++)
 		{
 			CString line;

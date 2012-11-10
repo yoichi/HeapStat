@@ -12,9 +12,25 @@ private:
 	HANDLE output_;
 
 	/**
+	*	@brief target is x64 or not
+	*/
+	const bool isTarget64_;
+
+	/**
+	*	@brief gflag
+	*/
+	const ULONG32 ntGlobalFlag_;
+
+	/**
 	*	@brief already processed backtrace entries
 	*/
 	std::set<ULONG64> processed_;
+
+	/**
+	*	@brief operator (disabled)
+	*	@note to avoid C4512 warning
+	*/
+	UmdhProcessor& operator=(const UmdhProcessor&);
 
 	/**
 	*	@brief default constructor (disabled)
