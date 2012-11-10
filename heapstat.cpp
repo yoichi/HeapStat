@@ -270,16 +270,17 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 			USHORT extra;
 			if (READMEMORY(address + sizeof(entry) + 0xc, extra))
 			{
-				if (entry.Size * blockUnit >= extra)
+				if (extra < sizeof(entry) + 0x10)
 				{
-					record.userSize = entry.Size * blockUnit - extra;
-					record.userAddress = address + sizeof(entry) + 0x10;
+					return FALSE;
 				}
-				else
+				if (entry.Size * blockUnit < extra)
 				{
 					dprintf("invalid extra 0x%04x\n", extra);
 					return FALSE;
 				}
+				record.userSize = entry.Size * blockUnit - extra;
+				record.userAddress = address + sizeof(entry) + 0x10;
 			}
 			else
 			{
@@ -326,16 +327,17 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 			USHORT extra;
 			if (READMEMORY(address + sizeof(entry) + 0x1c, extra))
 			{
-				if (entry.Size * blockUnit >= extra)
+				if (extra + sizeof(entry.PreviousBlockPrivateData) < sizeof(entry) + 0x20)
 				{
-					record.userSize = entry.Size * blockUnit - extra;
-					record.userAddress = address + sizeof(entry) + 0x20;
+					return FALSE;
 				}
-				else
+				if (entry.Size * blockUnit < extra)
 				{
 					dprintf("invalid extra 0x%04x\n", extra);
 					return FALSE;
 				}
+				record.userSize = entry.Size * blockUnit - extra;
+				record.userAddress = address + sizeof(entry) + 0x20;
 			}
 			else
 			{
