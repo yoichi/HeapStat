@@ -53,8 +53,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,4,0,0
- PRODUCTVERSION 2012,11,4,0
+ FILEVERSION 2,5,0,0
+ PRODUCTVERSION 2012,11,10,14
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -70,12 +70,12 @@ BEGIN
         BLOCK "000904b0"
         BEGIN
             VALUE "FileDescription", "heapstat debugger extension"
-            VALUE "FileVersion", "2, 4, 0, 0"
+            VALUE "FileVersion", "2, 5, 0, 0"
             VALUE "InternalName", "heapstat"
             VALUE "LegalCopyright", "Copyright (C) 2011-2012 Yoichi NAKAYAMA"
             VALUE "OriginalFilename", "heapstat.dll"
             VALUE "ProductName", "heapstat debugger extension"
-            VALUE "ProductVersion", "2012, 11, 4, 0"
+            VALUE "ProductVersion", "2012, 11, 10, 14"
         END
     END
     BLOCK "VarFileInfo"
