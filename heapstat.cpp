@@ -99,8 +99,8 @@ typedef struct {
 */
 static BOOL WalkBalancedLinks(ULONG64 address,
 							  const CommonParams &params,
-							   BOOL (*handler)(ULONG64 address, const CommonParams &params, void *arg),
-							   void *arg)
+							  BOOL (*handler)(ULONG64 address, const CommonParams &params, void *arg),
+							  void *arg)
 {
 	ULONG cb;
 
