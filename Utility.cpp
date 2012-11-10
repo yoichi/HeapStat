@@ -3,6 +3,10 @@
 
 bool IsTarget64()
 {
+	if (!IsPtr64())
+	{
+		return false;
+	}
 	ULONG64 address;
 	GetTebAddress(&address);
 	return (address >> 32) != 0;

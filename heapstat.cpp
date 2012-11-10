@@ -1315,6 +1315,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	params.verbose = verbose;
 	params.ntGlobalFlag = GetNtGlobalFlag();
 	params.isTarget64 = IsTarget64();
+	DPRINTF("target is %s\n", params.isTarget64 ? "x64" : "x86");
 	if (params.ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
 		DPRINTF("hpa enabled\n");
