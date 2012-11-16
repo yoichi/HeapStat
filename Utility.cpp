@@ -140,7 +140,7 @@ std::vector<ULONG64> GetStackTrace(ULONG64 ustAddress, bool isTarget64, ULONG32 
 
 	if (!READMEMORY(ustAddress + offset, depth))
 	{
-		dprintf("read depth failed\n");
+		dprintf("read depth failed at %p + %p\n", ustAddress, offset);
 		return trace;
 	}
 

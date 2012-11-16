@@ -106,7 +106,7 @@ void SummaryProcessor::Print(const char *key)
 	std::set<UstRecord> sorted;
 	for (std::map<ULONG64, UstRecord>::iterator itr_ = records_.begin(); itr_ != records_.end(); ++itr_)
 	{
-		if (!HasMatchedFrame(itr_->second.ustAddress, key))
+		if (itr_->second.ustAddress == NULL || !HasMatchedFrame(itr_->second.ustAddress, key))
 		{
 			continue;
 		}
@@ -146,6 +146,10 @@ void SummaryProcessor::PrintUstRecords(std::set<UstRecord>& records)
 
 ULONG64 SummaryProcessor::GetCallerModule(ULONG64 ustAddress, std::vector<ModuleInfo> &loadedModules)
 {
+	if (ustAddress == NULL)
+	{
+		return NULL;
+	}
 	std::vector<ULONG64> stackTrace = GetStackTrace(ustAddress, isTarget64_, ntGlobalFlag_);
 	for (std::vector<ULONG64>::iterator itr = stackTrace.begin(); itr != stackTrace.end(); itr++)
 	{
