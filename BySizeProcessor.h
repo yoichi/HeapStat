@@ -22,11 +22,23 @@ private:
 	*/
 	std::map<ULONG64, SizeRecord> records_;
 
+	/**
+	*	@brief 0: show summary for entire range, !0: print ust addresses for specified size
+	*/
+	const ULONG64 size_;
+
+	/**
+	*	@brief operator (disabled)
+	*	@note to avoid C4512 warning
+	*/
+	BySizeProcessor& operator=(const BySizeProcessor&);
+
 public:
 	/**
 	*	@brief constructor
+		@param size [in] 0: show summary for entire range, !0: print ust addresses for specified size
 	*/
-	BySizeProcessor();
+	BySizeProcessor(ULONG64 size);
 
 	/**
 	*	@copydoc IProcessor::StartHeap()

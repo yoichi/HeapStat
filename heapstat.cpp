@@ -1365,7 +1365,7 @@ DECLARE_API(help)
 
 	dprintf("Help for extension dll heapstat.dll\n"
 			"   heapstat [-v] [-k module!symbol] - Shows statistics of heaps\n"
-			"   bysize [-v]                      - Shows statistics of heaps by size\n"
+			"   bysize [-v] [-s size]            - Shows statistics of heaps by size\n"
 			"   umdh <file>                      - Generate umdh output\n"
 			"   ust <addr>                       - Shows stacktrace of the ust record at <addr>\n"
 			"   help                             - Shows this help\n");
@@ -1432,6 +1432,7 @@ DECLARE_API(bysize)
 	UNREFERENCED_PARAMETER(hCurrentProcess);
 
 	BOOL verbose = FALSE;
+	ULONG64 size = 0;
 
 	std::vector<char> buffer;
 	buffer.resize(strlen(args) + 1);
@@ -1446,10 +1447,29 @@ DECLARE_API(bysize)
 			dprintf("verbose mode\n");
 			verbose = TRUE;
 		}
+		else if (strcmp("-s", token) == 0)
+		{
+			// print ust addresses for specified size
+			// example usage:
+			// .foreach (var {!bysize -s 800}) {!ust var; .echo}
+			token = strtok_s(NULL, delim, &nextToken);
+			if (token == NULL)
+			{
+				dprintf("no size specified after -s\n");
+				return;
+			}
+			char *end = NULL;
+			size = _strtoui64(token, &end, 16);
+			if ((size_t)(end - token) != strlen(token))
+			{
+				dprintf("invalid character after -s\n");
+				return;
+			}
+		}
 		token = strtok_s(NULL, delim, &nextToken);
 	}
 
-	BySizeProcessor processor;
+	BySizeProcessor processor(size);
 
 	if (!AnalyzeHeap(&processor, verbose))
 	{

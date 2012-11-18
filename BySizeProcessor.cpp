@@ -2,7 +2,8 @@
 #include "common.h"
 #include "BySizeProcessor.h"
 
-BySizeProcessor::BySizeProcessor()
+BySizeProcessor::BySizeProcessor(ULONG64 size)
+: size_(size)
 {
 }
 
@@ -13,6 +14,12 @@ void BySizeProcessor::Register(ULONG64 ustAddress,
 	UNREFERENCED_PARAMETER(size);
 	UNREFERENCED_PARAMETER(address);
 	UNREFERENCED_PARAMETER(userAddress);
+
+	if (size_ != 0 && userSize != size_)
+	{
+		// ignore other size
+		return;
+	}
 
 	std::map<ULONG64, SizeRecord>::iterator itr = records_.find(userSize);
 	if (itr == records_.end())
@@ -33,6 +40,16 @@ void BySizeProcessor::Register(ULONG64 ustAddress,
 
 void BySizeProcessor::Print()
 {
+	if (size_ != 0)
+	{
+		SizeRecord record = records_[size_];
+		for (std::set<ULONG64>::iterator itr_ = record.ustAddress.begin(); itr_ != record.ustAddress.end(); ++itr_)
+		{
+			dprintf("%p\n", *itr_);
+		}
+		return;
+	}
+
 	std::multiset<SizeRecord> sorted;
 	for (std::map<ULONG64, SizeRecord>::iterator itr = records_.begin(); itr != records_.end(); ++itr)
 	{
