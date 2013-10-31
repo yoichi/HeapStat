@@ -1384,7 +1384,7 @@ DECLARE_API(heapstat)
 	std::vector<char> buffer;
 	buffer.resize(strlen(args) + 1);
 	memcpy(&buffer[0], args, buffer.size());
-	char *token, *nextToken;
+	char *token, *nextToken = NULL;
 	const char *delim = " ";
 	token = strtok_s(&buffer[0], delim, &nextToken);
 	while (token != NULL)
@@ -1437,7 +1437,7 @@ DECLARE_API(bysize)
 	std::vector<char> buffer;
 	buffer.resize(strlen(args) + 1);
 	memcpy(&buffer[0], args, buffer.size());
-	char *token, *nextToken;
+	char *token, *nextToken = NULL;
 	const char *delim = " ";
 	token = strtok_s(&buffer[0], delim, &nextToken);
 	while (token != NULL)
