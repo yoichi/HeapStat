@@ -31,6 +31,7 @@ ULONG32 GetNtGlobalFlag();
 
 #define OS_VERSION_WIN7 (((ULONG64)6 << 32) | 1)
 #define OS_VERSION_WIN8 (((ULONG64)6 << 32) | 2)
+#define OS_VERSION_WIN81 (((ULONG64)6 << 32) | 3)
 
 /**
 *	@brief get OSMajorVersion and OSMinorVersion

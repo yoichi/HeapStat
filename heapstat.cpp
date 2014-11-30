@@ -366,21 +366,36 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone32(ULONG64 lfh, ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
 	ULONG offset;
-	ULONG32 freePointer;
-	if (!READMEMORY(zone + 0x8, freePointer))
-	{
-		dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
-		return FALSE;
-	}
 
 	ULONG64 subsegment = zone + 0x10;
 	ULONG subsegmentSize = params.osVersion >= OS_VERSION_WIN8 ? 0x28 : 0x20; // sizeof(_HEAP_SUBSEGMENT)
-	while (subsegment + subsegmentSize <= freePointer)
+	ULONG64 endSubsegment;
+	if (params.osVersion >= OS_VERSION_WIN81)
+	{
+		LONG32 nextIndex;
+		if (!READMEMORY(zone + 0x8, nextIndex))
+		{
+			dprintf("read _LFH_BLOCK_ZONE::NextIndex failed\n");
+			return FALSE;
+		}
+		endSubsegment = subsegment + subsegmentSize * nextIndex;
+	}
+	else
+	{
+		ULONG32 freePointer;
+		if (!READMEMORY(zone + 0x8, freePointer))
+		{
+			dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
+			return FALSE;
+		}
+		endSubsegment = freePointer;
+	}
+	while (subsegment + subsegmentSize <= endSubsegment)
 	{
 		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
@@ -411,7 +426,35 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 		if (userBlocks != 0)
 		{
 			ULONG64 address;
-			if (params.osVersion >= OS_VERSION_WIN8)
+			const ULONG blockUnit = 8;
+			USHORT blockStride;
+			if (params.osVersion >= OS_VERSION_WIN81)
+			{
+				ULONG32 encodedOffsets; // _HEAP_USERDATA_HEADER::EncodedOffsets
+				if (!READMEMORY(userBlocks + 0x10, encodedOffsets))
+				{
+					dprintf("read _HEAP_USERDATA_HEADER::EncodedOffsets failed\n");
+					return FALSE;
+				}
+
+				ULONG32 lfhKey;
+				{
+					ULONG32 pLFHKey = (ULONG32)GetExpression("ntdll!RtlpLFHKey"); // FIXME: don't work on wow64 dump
+					if (!READMEMORY(pLFHKey, lfhKey))
+					{
+						dprintf("read LFHKey failed\n");
+						return FALSE;
+					}
+				}
+
+				// decode
+				encodedOffsets ^= userBlocks ^ lfh ^ lfhKey;
+
+				USHORT firstAllocationOffset = encodedOffsets & 0xFFFF; // _HEAP_USERDATA_OFFSETS::FirstAllocationOffset
+				address = userBlocks + firstAllocationOffset;
+				blockStride = encodedOffsets >> 16; // _HEAP_USERDATA_OFFSETS::BlockStride
+			}
+			else if (params.osVersion >= OS_VERSION_WIN8)
 			{
 				USHORT firstAllocationOffset; // _HEAP_USERDATA_HEADER::FirstAllocationOffset
 				if (!READMEMORY(userBlocks + 0x10, firstAllocationOffset))
@@ -420,15 +463,16 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 					return FALSE;
 				}
 				address = userBlocks + firstAllocationOffset;
+				blockStride = blockSize * blockUnit;
 			}
 			else
 			{
 				address = userBlocks + 0x10; // sizeof(_LFH_BLOCK_ZONE);
+				blockStride = blockSize * blockUnit;
 			}
 			for (USHORT i = 0; i < blockCount; i++)
 			{
 				DPRINTF("entry %p\n", address);
-				const ULONG blockUnit = 8;
 				HeapEntry entry;
 				if (!READMEMORY(address, entry))
 				{
@@ -461,7 +505,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 					}
 				}
 
-				address += blockSize * blockUnit;
+				address += blockStride;
 			}
 		}
 		subsegment += subsegmentSize;
@@ -469,20 +513,36 @@ static BOOL AnalyzeLFHZone32(ULONG64 zone, const CommonParams &params, std::set<
 	return TRUE;
 }
 
-static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
+static BOOL AnalyzeLFHZone64(ULONG64 lfh, ULONG64 zone, const CommonParams &params, std::set<HeapRecord> &lfhRecords)
 {
 	DPRINTF("_LFH_BLOCK_ZONE %p\n", zone);
 	ULONG cb;
-	ULONG64 freePointer;
-	if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "FreePointer", freePointer) != 0)
-	{
-		dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
-		return FALSE;
-	}
 
-	ULONG64 subsegment = zone + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+	ULONG64 subsegment;
 	ULONG subsegmentSize = GetTypeSize("ntdll!_HEAP_SUBSEGMENT");
-	while (subsegment + subsegmentSize <= freePointer)
+	ULONG64 endSubsegment;
+	if (params.osVersion >= OS_VERSION_WIN81)
+	{
+		subsegment = zone + 0x20;
+		LONG32 nextIndex;
+		if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "NextIndex", nextIndex) != 0)
+		{
+			dprintf("read _LFH_BLOCK_ZONE::NextIndex failed\n");
+		}
+		endSubsegment = subsegment + subsegmentSize * nextIndex;
+	}
+	else
+	{
+		subsegment = zone + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+		ULONG64 freePointer;
+		if (GetFieldValue(zone, "ntdll!_LFH_BLOCK_ZONE", "FreePointer", freePointer) != 0)
+		{
+			dprintf("read _LFH_BLOCK_ZONE::FreePointer failed\n");
+			return FALSE;
+		}
+		endSubsegment = freePointer;
+	}
+	while (subsegment + subsegmentSize <= endSubsegment)
 	{
 		DPRINTF("_HEAP_SUBSEGMENT %p\n", subsegment);
 		USHORT blockSize; // _HEAP_SUBSEGMENT::BlockSize
@@ -511,7 +571,57 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 		if (userBlocks != 0)
 		{
 			ULONG64 address;
-			if (params.osVersion >= OS_VERSION_WIN8)
+			const ULONG blockUnit = 16;
+			USHORT blockStride;
+			if (params.osVersion >= OS_VERSION_WIN81)
+			{
+				ULONG32 encodedOffsets;
+				if (GetFieldValue(userBlocks, "ntdll!_HEAP_USERDATA_HEADER", "EncodedOffsets", encodedOffsets))
+				{
+					dprintf("read _HEAP_USERDATA_HEADER::EncodedOffsets failed\n");
+					return FALSE;
+				}
+
+				ULONG32 lfhKey;
+				{
+					ULONG64 pLFHKey;
+					if (!GetExpressionEx("ntdll!RtlpLFHKey", &pLFHKey, NULL))
+					{
+						dprintf("get ntdll!RtlpLFHKey failed\n");
+						return FALSE;
+					}
+					if (!READMEMORY(pLFHKey, lfhKey))
+					{
+						dprintf("read LFHKey failed\n");
+						return FALSE;
+					}
+				}
+
+				// decode
+				encodedOffsets ^= (ULONG32)userBlocks ^ (ULONG32)lfh ^ (ULONG32)lfhKey;
+
+#if 0
+				USHORT firstAllocationOffset;
+				if (GetFieldValue((ULONG64)&encodedOffsets, "ntdll!_HEAP_USERDATA_OFFSETS", "FirstAllocationOffset", firstAllocationOffset))
+				{
+					dprintf("read _HEAP_USERDATA_OFFSETS::FirstAllocationOffset failed\n");
+					return FALSE;
+				}
+#else
+				USHORT firstAllocationOffset = encodedOffsets & 0xFFFF;
+#endif
+				address = userBlocks + firstAllocationOffset;
+#if 0
+				if (GetFieldValue((ULONG64)&encodedOffsets, "ntdll!_HEAP_USERDATA_OFFSETS", "BlockStride", blockStride))
+				{
+					dprintf("read _HEAP_USERDATA_OFFSETS::BlockStride failed\n");
+					return FALSE;
+				}
+#else
+				blockStride = encodedOffsets >> 16;
+#endif
+			}
+			else if (params.osVersion >= OS_VERSION_WIN8)
 			{
 				USHORT firstAllocationOffset;
 				if (GetFieldValue(userBlocks, "ntdll!_HEAP_USERDATA_HEADER", "FirstAllocationOffset", firstAllocationOffset))
@@ -520,15 +630,16 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 					return FALSE;
 				}
 				address = userBlocks + firstAllocationOffset;
+				blockStride = blockSize * blockUnit;
 			}
 			else
 			{
 				address = userBlocks + GetTypeSize("ntdll!_LFH_BLOCK_ZONE");
+				blockStride = blockSize * blockUnit;
 			}
 			for (USHORT i = 0; i < blockCount; i++)
 			{
 				DPRINTF("entry %p\n", address);
-				const ULONG blockUnit = 16;
 				Heap64Entry entry;
 				if (!READMEMORY(address, entry))
 				{
@@ -561,7 +672,7 @@ static BOOL AnalyzeLFHZone64(ULONG64 zone, const CommonParams &params, std::set<
 					}
 				}
 
-				address += blockSize * blockUnit;
+				address += blockStride;
 			}
 		}
 		subsegment += subsegmentSize;
@@ -615,7 +726,7 @@ static BOOL AnalyzeLFH32(ULONG64 heapAddress, const CommonParams &params, std::s
 		{
 			break;
 		}
-		if (!AnalyzeLFHZone32(zone, params, lfhRecords))
+		if (!AnalyzeLFHZone32(frontEndHeap, zone, params, lfhRecords))
 		{
 			return FALSE;
 		}
@@ -671,7 +782,7 @@ static BOOL AnalyzeLFH64(ULONG64 heapAddress, const CommonParams &params, std::s
 		{
 			break;
 		}
-		if (!AnalyzeLFHZone64(zone, params, lfhRecords))
+		if (!AnalyzeLFHZone64(frontEndHeap, zone, params, lfhRecords))
 		{
 			return FALSE;
 		}
