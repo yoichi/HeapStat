@@ -4,6 +4,7 @@
 
 #pragma once
 #include <vector>
+#include <string>
 
 #define NT_GLOBAL_FLAG_UST 0x00001000 // user mode stack trace database enabled
 #define NT_GLOBAL_FLAG_HPA 0x02000000 // page heap enabled
@@ -63,3 +64,8 @@ struct ModuleInfo
 *	@brief get information of loaded modules in PEB::InMemoryOrderModuleList
 */
 std::vector<ModuleInfo> GetLoadedModules();
+
+/**
+*	@brief get ntdll module name
+*/
+std::string GetNtDllName();

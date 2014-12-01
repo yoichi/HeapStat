@@ -342,3 +342,23 @@ ERROR_EXIT:
 	info.clear();
 	return info;
 }
+
+std::string GetNtDllName()
+{
+	if (!IsTarget64() && IsPtr64())
+	{
+		// WOW64
+		std::vector<ModuleInfo> modules = GetLoadedModules();
+		for (std::vector<ModuleInfo>::iterator itr = modules.begin(); itr != modules.end(); ++itr)
+		{
+			CHAR *ptr = strrchr(itr->FullDllName, '\\');
+			if (ptr != NULL && strcmp(ptr + 1, "ntdll.dll") == 0)
+			{
+				CHAR name[] = "ntdll_01234567";
+				_snprintf_s(name, _TRUNCATE, "ntdll_%08x", (ULONG32)itr->DllBase);
+				return name;
+			}
+		}
+	}
+	return "ntdll";
+}

@@ -4,6 +4,7 @@
 #include "BySizeProcessor.h"
 #include "UmdhProcessor.h"
 #include <list>
+#include <string>
 
 typedef struct {
 	USHORT Size;
@@ -87,6 +88,7 @@ typedef struct {
 	ULONG64 osVersion;
 	BOOL verbose;
 	bool isTarget64;
+	std::string ntdllName;
 } CommonParams;
 
 #define DPRINTF(...) do { if (params.verbose) { dprintf(__VA_ARGS__); } } while (0)
@@ -439,7 +441,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 lfh, ULONG64 zone, const CommonParams &para
 
 				ULONG32 lfhKey;
 				{
-					ULONG32 pLFHKey = (ULONG32)GetExpression("ntdll!RtlpLFHKey"); // FIXME: don't work on wow64 dump
+					ULONG32 pLFHKey = (ULONG32)GetExpression((params.ntdllName + "!RtlpLFHKey").c_str());
 					if (!READMEMORY(pLFHKey, lfhKey))
 					{
 						dprintf("read LFHKey failed\n");
@@ -1428,6 +1430,7 @@ static BOOL AnalyzeHeap(IProcessor *processor, BOOL verbose)
 	params.verbose = verbose;
 	params.ntGlobalFlag = GetNtGlobalFlag();
 	params.isTarget64 = IsTarget64();
+	params.ntdllName = GetNtDllName();
 	DPRINTF("target is %s\n", params.isTarget64 ? "x64" : "x86");
 	if (params.ntGlobalFlag & NT_GLOBAL_FLAG_HPA)
 	{
