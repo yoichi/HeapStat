@@ -8,7 +8,9 @@ Usage:
 see http://github.com/yoichi/HeapStat/wiki
 
 Supported Target Platforms:
-* Windows7 (x64, x86) and Windows8 (x64, x86)
+* Windows7 (x64, x86)
+* Windows8 (x64, x86)
+* Windows8.1 (x64, x86)
 
 Build Requirements:
 * Visual Studio 2008
