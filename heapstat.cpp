@@ -385,7 +385,7 @@ static BOOL AnalyzeLFHZone32(ULONG64 lfh, ULONG64 zone, const CommonParams &para
 			dprintf("read _LFH_BLOCK_ZONE::NextIndex failed\n");
 			return FALSE;
 		}
-		endSubsegment = subsegment + subsegmentSize * nextIndex;
+		endSubsegment = subsegment + subsegmentSize * (nextIndex - 1);
 	}
 	else
 	{
@@ -531,7 +531,7 @@ static BOOL AnalyzeLFHZone64(ULONG64 lfh, ULONG64 zone, const CommonParams &para
 		{
 			dprintf("read _LFH_BLOCK_ZONE::NextIndex failed\n");
 		}
-		endSubsegment = subsegment + subsegmentSize * nextIndex;
+		endSubsegment = subsegment + subsegmentSize * (nextIndex - 1);
 	}
 	else
 	{
