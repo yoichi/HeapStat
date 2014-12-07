@@ -263,7 +263,7 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 		ULONG32 ustAddress;
 		if (!READMEMORY(address + sizeof(entry), ustAddress))
 		{
-			dprintf("read ustAddress at %p failed", address + sizeof(entry));
+			dprintf("read ustAddress at %p failed\n", address + sizeof(entry));
 			return FALSE;
 		}
 		else
@@ -300,7 +300,7 @@ static BOOL ParseHeapRecord32(ULONG64 address, const HeapEntry &entry, ULONG32 n
 		}
 		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
 		{
-			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
+			dprintf("invalid extra: %02x\n", entry.ExtendedBlockSignature);
 			return FALSE;
 		}
 		record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
@@ -320,7 +320,7 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 		ULONG64 ustAddress;
 		if (!READMEMORY(address + sizeof(entry), ustAddress))
 		{
-			dprintf("read ustAddress at %p failed", address + sizeof(entry));
+			dprintf("read ustAddress at %p failed\n", address + sizeof(entry));
 			return FALSE;
 		}
 		else
@@ -357,7 +357,7 @@ static BOOL ParseHeapRecord64(ULONG64 address, const Heap64Entry &entry, ULONG32
 		}
 		if (entry.Size * blockUnit < entry.ExtendedBlockSignature)
 		{
-			dprintf("invalid extra: %02x", entry.ExtendedBlockSignature);
+			dprintf("invalid extra: %02x\n", entry.ExtendedBlockSignature);
 			return FALSE;
 		}
 		record.userSize = entry.Size * blockUnit - entry.ExtendedBlockSignature;
